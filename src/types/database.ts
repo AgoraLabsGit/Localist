@@ -1,8 +1,9 @@
-// Placeholder — run `npm run db:types` after Supabase setup to generate real types
+// Manual types (run `npm run db:types` with local Supabase for generated types)
 
 export interface Venue {
   id: string;
   google_place_id: string | null;
+  foursquare_id: string | null;
   name: string;
   address: string | null;
   city: string;
@@ -11,9 +12,10 @@ export interface Venue {
   longitude: number | null;
   phone: string | null;
   website_url: string | null;
-  google_rating: number | null;
-  google_rating_count: number | null;
-  opening_hours: string[] | null;
+  rating: number | null;
+  rating_count: number | null;
+  opening_hours: unknown;
+  photo_urls?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -23,35 +25,16 @@ export interface Highlight {
   title: string;
   short_description: string | null;
   category: string;
-  vibe_tags: string[];
+  vibe_tags: string[] | unknown;
   venue_id: string | null;
   city: string;
   neighborhood: string | null;
   avg_expected_price: number | null;
-  currency: string;
+  currency: string | null;
   url: string | null;
   is_featured: boolean;
   status: string;
   created_at: string;
   updated_at: string;
-  // Joined
-  venue?: Venue;
-}
-
-export interface SavedItem {
-  id: string;
-  user_id: string;
-  target_type: "highlight" | "event";
-  target_id: string;
-  created_at: string;
-}
-
-export interface Rating {
-  id: string;
-  user_id: string;
-  target_type: string;
-  target_id: string;
-  rating: number;
-  comment: string | null;
-  created_at: string;
+  venue?: Venue | Venue[] | null;
 }

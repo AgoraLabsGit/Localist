@@ -22,7 +22,7 @@ We CAN use Google Places to populate our DB, but we CANNOT cache most data. We s
 
 ### Option A: Hybrid (Recommended for MVP)
 1. **Ingestion script** searches Google Places → stores only `place_id` + our own metadata (category, city, neighborhood we determine ourselves)
-2. **AI generates descriptions** independently — NOT cached Google summaries
+2. **AI enrichment** — We may use Google data (rating, address, editorial summary) as **transient input** to the LLM. The AI produces **original output**; we store **only** the AI output, never Google’s text.
 3. **On display**, we fetch fresh data from Google (rating, hours, address) using the stored `place_id`
 4. **Show Google Maps attribution** (logo or text "Google Maps") on any screen displaying their data
 
@@ -54,9 +54,17 @@ When displaying Google Places data:
 - Use Places API **(New)** — not the legacy version
 - Always send `fieldMask` header to control SKU tier
 - Store `place_id` + `city` + `category` + `neighborhood` in our DB
-- Our `short_description` and `vibe_tags` = AI-generated, not Google data
+- Our `short_description` and `vibe_tags` = **AI-generated from our prompt**. We may pass Google data (rating, address, etc.) as input to the AI; we store only the AI’s output, not Google’s text. See `docs/data_pipeline.md`.
 - Fetch fresh on display OR accept the attribution requirements
 
 ---
 
 *Last updated: 2026-02-16*
+
+## Compliance Checklist (Current)
+- [x] Ingest stores `place_id` + our metadata (category, neighborhood, city)
+- [x] `short_description` = our own text, NOT Google editorial_summary
+- [x] Places API (New) with field masks
+- [x] Google Maps attribution on place detail modal
+- [x] Feed footer: "Powered by Google Maps"
+- [x] Address, hours, rating from Foursquare (stored in DB); Google used only for discovery

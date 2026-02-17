@@ -43,11 +43,17 @@ Starting with Buenos Aires. Scaling to any city.
 - ❌ Map view
 - ❌ User-generated activities
 
-## Data Pipeline
-1. Google Places Text Search → discover top places by category + city
-2. Store `place_id` + our metadata (category, neighborhood, city)
-3. AI generates `short_description` and `vibe_tags` (not cached Google text)
-4. On display: fetch fresh details from Google via `place_id`
+## Data Pipeline (Our Differentiator)
+
+**Special sauce:** Google data as **input** → AI generates **our content** → we store **only our output** in Supabase.
+
+1. **Text Search** (Google) → discover places. Extract `place_id`, name, address, rating.
+2. **Upsert** → `venues` + `highlights` in Supabase (`place_id`, name, category, neighborhood, city).
+3. **Enrichment** — *Phase 1 (MVP):* Templates only (`"{name} — a top-rated {category} in {neighborhood}."`). *Phase 2:* AI uses Google context as transient input → produces `short_description`, `vibe_tags` → we store only AI output.
+4. **Feed** → 100% Supabase. No Google calls for browse/filter.
+5. **Detail view** → Fetch Place Details on demand (24h cache). Show attribution.
+
+See `docs/data_pipeline.md` for full pipeline, costs, and compliance.
 
 ## Multi-City Path
 - Same ingestion script, different city coordinates
@@ -55,9 +61,10 @@ Starting with Buenos Aires. Scaling to any city.
 - Each highlight tagged with `city`
 
 ## Tech Stack
-Next.js 14 + TypeScript + Tailwind + shadcn/ui → Vercel
+Next.js 14 + TypeScript + Tailwind → Vercel
 Supabase (Postgres + Auth)
 Google Places API (New)
+LLM (Claude / GPT-4o-mini) for AI enrichment when we add Phase 2
 
 ## Success Criteria
 - 50+ quality highlights per city

@@ -1,7 +1,7 @@
 -- Localist MVP Schema (Highlights-first)
 
 -- Venues (from Google Places)
-CREATE TABLE venues (
+CREATE TABLE IF NOT EXISTS venues (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   google_place_id TEXT UNIQUE,
   name TEXT NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE venues (
 );
 
 -- Highlights (curated places)
-CREATE TABLE highlights (
+CREATE TABLE IF NOT EXISTS highlights (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   short_description TEXT,
@@ -39,7 +39,7 @@ CREATE TABLE highlights (
 );
 
 -- Users
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY REFERENCES auth.users(id),
   email TEXT,
   role TEXT DEFAULT 'user',
@@ -50,7 +50,7 @@ CREATE TABLE users (
 );
 
 -- User preferences
-CREATE TABLE user_preferences (
+CREATE TABLE IF NOT EXISTS user_preferences (
   user_id UUID PRIMARY KEY REFERENCES users(id),
   interests JSONB DEFAULT '[]',
   budget_min NUMERIC(10,2),
@@ -62,7 +62,7 @@ CREATE TABLE user_preferences (
 );
 
 -- Saved items
-CREATE TABLE saved_items (
+CREATE TABLE IF NOT EXISTS saved_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) NOT NULL,
   target_type TEXT NOT NULL, -- 'highlight' or 'event'
@@ -72,7 +72,7 @@ CREATE TABLE saved_items (
 );
 
 -- Ratings
-CREATE TABLE ratings (
+CREATE TABLE IF NOT EXISTS ratings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) NOT NULL,
   target_type TEXT NOT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE ratings (
 );
 
 -- Ingestion jobs
-CREATE TABLE ingestion_jobs (
+CREATE TABLE IF NOT EXISTS ingestion_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
@@ -96,9 +96,9 @@ CREATE TABLE ingestion_jobs (
 );
 
 -- Indexes
-CREATE INDEX idx_highlights_city ON highlights(city);
-CREATE INDEX idx_highlights_category ON highlights(category);
-CREATE INDEX idx_highlights_neighborhood ON highlights(neighborhood);
-CREATE INDEX idx_venues_google_place_id ON venues(google_place_id);
-CREATE INDEX idx_saved_items_user ON saved_items(user_id);
-CREATE INDEX idx_ratings_target ON ratings(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_highlights_city ON highlights(city);
+CREATE INDEX IF NOT EXISTS idx_highlights_category ON highlights(category);
+CREATE INDEX IF NOT EXISTS idx_highlights_neighborhood ON highlights(neighborhood);
+CREATE INDEX IF NOT EXISTS idx_venues_google_place_id ON venues(google_place_id);
+CREATE INDEX IF NOT EXISTS idx_saved_items_user ON saved_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_ratings_target ON ratings(target_type, target_id);
