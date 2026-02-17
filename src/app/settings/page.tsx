@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { SignOutButton } from "./sign-out-button";
+import { LocationSection } from "./location-section";
+import { PreferencesSection } from "./preferences-section";
+import { isAdmin } from "@/lib/admin";
 
 export default async function SettingsPage() {
   const supabase = createClient();
@@ -9,6 +12,7 @@ export default async function SettingsPage() {
   if (!user) {
     redirect("/auth/login?next=/settings");
   }
+  const isAdminUser = await isAdmin(supabase, user.id);
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm border-b">
@@ -25,6 +29,21 @@ export default async function SettingsPage() {
           <p className="text-sm text-muted-foreground">Email</p>
           <p className="font-medium">{user.email}</p>
         </div>
+        <div className="rounded-lg border p-4">
+          <LocationSection />
+        </div>
+        <div className="rounded-lg border p-4">
+          <PreferencesSection />
+        </div>
+        {isAdminUser && (
+          <Link
+            href="/admin"
+            className="block rounded-lg border p-3 hover:bg-accent/50"
+          >
+            <span className="font-medium">Admin</span>
+            <p className="text-sm text-muted-foreground">Manage cities, categories</p>
+          </Link>
+        )}
         <SignOutButton />
       </div>
     </div>

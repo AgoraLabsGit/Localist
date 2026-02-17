@@ -11,7 +11,9 @@
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local > src/types/database.ts",
     "ingest:places": "npx tsx scripts/ingest-places.ts",
-    "ingest:places:incremental": "npx tsx scripts/ingest-places.ts --incremental"
+    "ingest:places:incremental": "npx tsx scripts/ingest-places.ts --incremental",
+    "update:descriptions": "npx tsx scripts/update-descriptions-from-foursquare.ts",
+    "compute:scores": "npx tsx scripts/compute-quality-scores.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",

@@ -1,30 +1,63 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { HighlightCard } from "./highlight-card";
 import { PlaceDetail } from "./place-detail";
 import { TabNav, type Tab } from "./tab-nav";
 import { FilterSheet, FilterPill, formatFilterLabel, type FilterState } from "./filter-sheet";
+import { ConciergeFilterSheet, type ConciergeFilterState } from "./concierge-filter-sheet";
 import type { Highlight } from "@/types/database";
 import type { User } from "@supabase/supabase-js";
+
+interface ConciergeSection {
+  id: string;
+  title: string;
+  items: { primary: Highlight; categories: string[]; highlightIds: string[] }[];
+}
+
+const PERSONA_LABELS: Record<string, string> = {
+  local: "lives here",
+  nomad: "here for a while",
+  tourist: "visiting",
+};
+
+interface Preferences {
+  preferred_neighborhoods: string[];
+  interests: string[];
+  persona_type?: string | null;
+  primary_neighborhood?: string | null;
+  home_city?: string;
+}
 
 interface HighlightsFeedProps {
   highlights: Highlight[];
   initialSavedIds: string[];
   user: User | null;
+  preferences?: Preferences;
 }
 
-export function HighlightsFeed({ highlights, initialSavedIds, user }: HighlightsFeedProps) {
+export function HighlightsFeed({ highlights, initialSavedIds, user, preferences = { preferred_neighborhoods: [], interests: [], persona_type: null, primary_neighborhood: null, home_city: "Buenos Aires" } }: HighlightsFeedProps) {
   const [filters, setFilters] = useState<FilterState>({
     category: "all",
     neighborhood: "all",
     vibe: "all",
   });
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [conciergeFilterOpen, setConciergeFilterOpen] = useState(false);
+  const [conciergeFilters, setConciergeFilters] = useState<ConciergeFilterState>({
+    timeContext: "today",
+    radius: "all",
+    typeGroup: "all",
+  });
+  const [conciergeData, setConciergeData] = useState<{
+    time_context: string;
+    sections: ConciergeSection[];
+  } | null>(null);
+  const [conciergeLoading, setConciergeLoading] = useState(false);
   const [selectedHighlightId, setSelectedHighlightId] = useState<string | null>(null);
   const [selectedPlaceSaved, setSelectedPlaceSaved] = useState(false);
   const [selectedToggleSaveId, setSelectedToggleSaveId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("Highlights");
+  const [activeTab, setActiveTab] = useState<Tab>(user ? "Concierge" : "Highlights");
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(initialSavedIds));
 
   const toggleSave = useCallback(async (highlightId: string, currentlySaved: boolean) => {
@@ -74,7 +107,16 @@ export function HighlightsFeed({ highlights, initialSavedIds, user }: Highlights
   const filtered = useMemo(() => {
     return mergedByVenue.filter(({ primary, categories }) => {
       if (filters.category !== "all" && !categories.includes(filters.category)) return false;
-      if (filters.neighborhood !== "all" && primary.neighborhood !== filters.neighborhood) return false;
+      if (filters.neighborhood === "all") {
+        // no neighborhood filter
+      } else if (filters.neighborhood === "__yours__") {
+        const match = preferences.preferred_neighborhoods?.some(
+          (n) => (primary.neighborhood ?? "").toLowerCase() === n.toLowerCase()
+        );
+        if (!match) return false;
+      } else if (primary.neighborhood !== filters.neighborhood) {
+        return false;
+      }
       if (filters.vibe !== "all") {
         const tags = Array.isArray(primary.vibe_tags) ? primary.vibe_tags : [];
         if (!tags.some((t: string) => String(t).toLowerCase() === filters.vibe.toLowerCase())) return false;
@@ -83,7 +125,9 @@ export function HighlightsFeed({ highlights, initialSavedIds, user }: Highlights
     });
   }, [mergedByVenue, filters]);
 
-  const appliedFilterCount = [filters.category, filters.neighborhood, filters.vibe].filter((f) => f !== "all").length;
+  const appliedFilterCount = [filters.category, filters.neighborhood, filters.vibe].filter(
+    (f) => f !== "all"
+  ).length;
 
   /** Saved: venue is saved if any of its highlights is saved. */
   const savedMerged = useMemo(() => {
@@ -94,6 +138,32 @@ export function HighlightsFeed({ highlights, initialSavedIds, user }: Highlights
     (highlightIds: string[]) => highlightIds.find((id) => savedIds.has(id)) ?? highlightIds[0],
     [savedIds]
   );
+
+  const conciergeFilterCount = [
+    conciergeFilters.timeContext !== "today",
+    conciergeFilters.radius !== "all",
+    conciergeFilters.typeGroup !== "all",
+  ].filter(Boolean).length;
+
+  useEffect(() => {
+    if (activeTab !== "Concierge" || !user) return;
+    setConciergeLoading(true);
+    const params = new URLSearchParams();
+    if (conciergeFilters.timeContext !== "today") {
+      params.set("timeContext", conciergeFilters.timeContext);
+    }
+    if (conciergeFilters.radius !== "all") {
+      params.set("radius", conciergeFilters.radius);
+    }
+    if (conciergeFilters.typeGroup !== "all") {
+      params.set("typeGroup", conciergeFilters.typeGroup);
+    }
+    fetch(`/api/concierge?${params}`)
+      .then((r) => r.json())
+      .then((d) => setConciergeData(d))
+      .catch(() => setConciergeData(null))
+      .finally(() => setConciergeLoading(false));
+  }, [activeTab, user, conciergeFilters]);
 
   if (highlights.length === 0) {
     return (
@@ -108,6 +178,14 @@ export function HighlightsFeed({ highlights, initialSavedIds, user }: Highlights
   return (
     <div className="space-y-4">
       <TabNav active={activeTab} onTabChange={setActiveTab} />
+      {activeTab === "Concierge" && !user && (
+        <p className="text-center text-muted-foreground py-8">
+          <a href="/auth/login?next=/" className="text-primary hover:underline">
+            Sign in
+          </a>{" "}
+          to get personalized recommendations.
+        </p>
+      )}
       {activeTab === "Highlights" && (
         <div className="flex items-center justify-between gap-2">
           {/* Single summarizing chip + Clear all */}
@@ -117,7 +195,7 @@ export function HighlightsFeed({ highlights, initialSavedIds, user }: Highlights
                 <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary truncate max-w-full">
                   {[filters.category, filters.neighborhood, filters.vibe]
                     .filter((f) => f !== "all")
-                    .map(formatFilterLabel)
+                    .map((f) => (f === "__yours__" ? "Your neighborhood" : formatFilterLabel(f)))
                     .join(" · ")}
                 </span>
                 <button
@@ -137,9 +215,6 @@ export function HighlightsFeed({ highlights, initialSavedIds, user }: Highlights
           <FilterPill onClick={() => setFilterSheetOpen(true)} appliedCount={appliedFilterCount} />
         </div>
       )}
-      {activeTab === "Events" && (
-        <p className="text-center text-muted-foreground py-8">Events coming in Phase 2.</p>
-      )}
       {activeTab === "Saved" && !user && (
         <p className="text-center text-muted-foreground py-8">
           <a href="/auth/login?next=/" className="text-primary hover:underline">
@@ -148,8 +223,60 @@ export function HighlightsFeed({ highlights, initialSavedIds, user }: Highlights
           to see your saved places.
         </p>
       )}
-      {activeTab === "Saved" && user && savedHighlights.length === 0 && (
+      {activeTab === "Saved" && user && savedMerged.length === 0 && (
         <p className="text-center text-muted-foreground py-8">No saved places yet. Tap the heart on any place to save it.</p>
+      )}
+      {activeTab === "Concierge" && user && (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              Handpicked for {conciergeData?.time_context === "sunday" ? "Sunday" : conciergeData?.time_context === "weekend" ? "the weekend" : "today"} in {preferences.home_city ?? "Buenos Aires"}.
+              <a href="/settings" className="text-primary hover:underline ml-1">Adjust</a>
+            </p>
+            <FilterPill onClick={() => setConciergeFilterOpen(true)} appliedCount={conciergeFilterCount} />
+          </div>
+          {conciergeLoading && (
+            <p className="text-center text-muted-foreground py-8">Loading your picks…</p>
+          )}
+          {!conciergeLoading && conciergeData?.sections?.length === 0 && (
+            <p className="text-center text-muted-foreground py-8">
+              No places match right now. Try changing filters or check Highlights.
+            </p>
+          )}
+          {!conciergeLoading && conciergeData?.sections && conciergeData.sections.length > 0 && (
+            <div className="space-y-6">
+              {conciergeData.sections.map((section) => (
+                <div key={section.id}>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-2">{section.title}</h3>
+                  <div className="space-y-3">
+                    {section.items.map(({ primary, categories, highlightIds }) => {
+                      const savedId = getSavedHighlightId(highlightIds);
+                      const isSaved = savedIds.has(savedId);
+                      return (
+                        <HighlightCard
+                          key={primary.venue_id ?? primary.id}
+                          highlight={primary}
+                          categories={categories}
+                          onClick={() => {
+                            setSelectedHighlightId(primary.id);
+                            setSelectedPlaceSaved(isSaved);
+                            setSelectedToggleSaveId(isSaved ? savedId : primary.id);
+                          }}
+                          saved={isSaved}
+                          onToggleSave={(e) => {
+                            e?.stopPropagation();
+                            toggleSave(isSaved ? savedId : primary.id, isSaved);
+                          }}
+                          isAuthenticated={!!user}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
       {(activeTab === "Highlights" || (activeTab === "Saved" && savedMerged.length > 0)) && (
         <div className="space-y-3">
@@ -184,6 +311,14 @@ export function HighlightsFeed({ highlights, initialSavedIds, user }: Highlights
         onFiltersChange={setFilters}
         onApply={() => setFilterSheetOpen(false)}
         resultsCount={filtered.length}
+        preferredNeighborhoods={preferences.preferred_neighborhoods}
+      />
+      <ConciergeFilterSheet
+        open={conciergeFilterOpen}
+        onClose={() => setConciergeFilterOpen(false)}
+        filters={conciergeFilters}
+        onFiltersChange={setConciergeFilters}
+        onApply={() => setConciergeFilterOpen(false)}
       />
       <PlaceDetail
         highlightId={selectedHighlightId}

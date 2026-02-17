@@ -1,7 +1,8 @@
 "use client";
 
-import { Heart, Star, MapPin } from "lucide-react";
+import { Heart, Star, MapPin, UtensilsCrossed } from "lucide-react";
 import type { Highlight, Venue } from "@/types/database";
+import { getPrimaryPhotoUrl } from "@/lib/venue-photo";
 
 function formatCategory(cat: string) {
   return cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -30,6 +31,7 @@ function getVenue(v: Highlight["venue"]): Venue | null {
 
 export function HighlightCard({ highlight, categories, onClick, saved = false, onToggleSave, isAuthenticated }: HighlightCardProps) {
   const venue = getVenue(highlight.venue);
+  const photoUrl = getPrimaryPhotoUrl(venue);
   const rating = venue?.rating ?? null;
   const ratingCount = venue?.rating_count ?? 0;
   const vibeTags = Array.isArray(highlight.vibe_tags) ? highlight.vibe_tags : [];
@@ -41,8 +43,23 @@ export function HighlightCard({ highlight, categories, onClick, saved = false, o
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
-      className="rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer text-left"
+      className="rounded-lg border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer text-left"
     >
+      {photoUrl ? (
+        <div className="relative aspect-[3/2] w-full bg-muted">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photoUrl}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </div>
+      ) : (
+        <div className="aspect-[3/2] w-full bg-muted flex items-center justify-center">
+          <UtensilsCrossed className="w-12 h-12 text-muted-foreground/50" />
+        </div>
+      )}
+      <div className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -61,11 +78,13 @@ export function HighlightCard({ highlight, categories, onClick, saved = false, o
           <h3 className="font-semibold text-foreground">{highlight.title}</h3>
           <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
             <MapPin className="w-3 h-3" />
-            {highlight.neighborhood ?? "Buenos Aires"}
+            {highlight.neighborhood ?? highlight.city}
           </div>
-          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-            {highlight.short_description ?? ""}
-          </p>
+          {highlight.short_description && (
+            <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+              {highlight.short_description}
+            </p>
+          )}
           <div className="flex items-center gap-3 mt-2">
             {rating != null && (
               <div className="flex items-center gap-1 text-xs">
@@ -96,6 +115,7 @@ export function HighlightCard({ highlight, categories, onClick, saved = false, o
         >
           <Heart className={`w-5 h-5 ${saved ? "fill-red-500" : ""}`} />
         </button>
+      </div>
       </div>
     </div>
   );

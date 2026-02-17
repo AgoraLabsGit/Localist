@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-const tabs = ["Saved", "Events", "Highlights"] as const;
+const tabs = ["Concierge", "Saved", "Highlights"] as const;
 export type Tab = (typeof tabs)[number];
 
 interface TabNavProps {

@@ -14,14 +14,16 @@ export const NEIGHBORHOODS = [
   "Caballito", "Almagro", "Retiro", "Monserrat", "San Nicolás", "Balvanera",
   "Boedo", "Barracas", "Constitución", "Flores",
 ] as const;
-export const VIBES = ["all", "solo_friendly", "date_night", "touristy", "local", "romantic", "lively"] as const;
+export const VIBES = ["all", "solo_friendly", "group_friendly", "date_night", "lively", "touristy", "local", "hidden_gem", "local_favorite"] as const;
 
-const TYPE_GROUPS: { id: string; label: string; types: string[] }[] = [
-  { id: "restaurants", label: "Restaurants", types: ["parrilla", "heladeria"] },
-  { id: "bars", label: "Bars", types: ["cocktail_bar", "rooftop", "tango_bar"] },
+export const TYPE_GROUPS: { id: string; label: string; types: string[] }[] = [
+  { id: "restaurants", label: "Restaurants", types: ["parrilla", "heladeria", "brunch", "cajun", "po_boy", "restaurant"] },
+  { id: "bars", label: "Bars", types: ["cocktail_bar", "rooftop", "tango_bar", "wine_bar", "jazz_bar", "music_venue", "night_club"] },
   { id: "cafes", label: "Cafés", types: ["cafe"] },
   { id: "museums", label: "Museums", types: ["museum"] },
-  { id: "other", label: "Other", types: ["bookstore"] },
+  { id: "outdoors", label: "Outdoors", types: ["park", "waterfront"] },
+  { id: "culture", label: "Culture", types: ["theater", "historical_place", "bookstore"] },
+  { id: "other", label: "Other", types: ["kids_activities", "tours"] },
 ];
 
 export const CATEGORIES = [
@@ -47,6 +49,8 @@ interface FilterSheetProps {
   onApply: () => void;
   /** Number of results for current sheet filters (computed by parent) */
   resultsCount: number;
+  /** User's preferred neighborhoods — adds "Your neighborhood" option */
+  preferredNeighborhoods?: string[];
 }
 
 function ChipRow({
@@ -54,11 +58,13 @@ function ChipRow({
   value,
   onChange,
   label,
+  formatLabel = formatFilterLabel,
 }: {
   options: readonly string[];
   value: string;
   onChange: (v: string) => void;
   label: string;
+  formatLabel?: (opt: string) => string;
 }) {
   return (
     <div>
@@ -76,7 +82,7 @@ function ChipRow({
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             )}
           >
-            {formatFilterLabel(opt)}
+            {formatLabel(opt)}
           </button>
         ))}
       </div>
@@ -92,6 +98,8 @@ function getGroupForCategory(category: string): string | null {
   return null;
 }
 
+export const YOUR_NEIGHBORHOOD = "__yours__";
+
 export function FilterSheet({
   open,
   onClose,
@@ -99,7 +107,11 @@ export function FilterSheet({
   onFiltersChange,
   onApply,
   resultsCount,
+  preferredNeighborhoods = [],
 }: FilterSheetProps) {
+  const neighborhoodOptions = preferredNeighborhoods.length > 0
+    ? [YOUR_NEIGHBORHOOD as const, ...NEIGHBORHOODS]
+    : NEIGHBORHOODS;
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
   useEffect(() => {
@@ -237,10 +249,11 @@ export function FilterSheet({
             </div>
           </div>
           <ChipRow
-            options={NEIGHBORHOODS}
+            options={neighborhoodOptions as readonly string[]}
             value={filters.neighborhood}
             onChange={(n) => onFiltersChange({ ...filters, neighborhood: n })}
             label="Area"
+            formatLabel={(opt) => opt === YOUR_NEIGHBORHOOD ? "Your neighborhood" : formatFilterLabel(opt)}
           />
           <ChipRow
             options={VIBES}

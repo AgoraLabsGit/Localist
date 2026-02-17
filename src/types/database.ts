@@ -7,6 +7,7 @@ export interface Venue {
   name: string;
   address: string | null;
   city: string;
+  city_id?: string | null;
   neighborhood: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -16,6 +17,12 @@ export interface Venue {
   rating_count: number | null;
   opening_hours: unknown;
   photo_urls?: string[];
+  fsq_photo_prefix?: string | null;
+  fsq_photo_suffix?: string | null;
+  quality_score?: number | null;
+  has_fsq_data?: boolean;
+  is_hidden_gem?: boolean;
+  is_local_favorite?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -28,6 +35,8 @@ export interface Highlight {
   vibe_tags: string[] | unknown;
   venue_id: string | null;
   city: string;
+  city_id?: string | null;
+  city_category_id?: string | null;
   neighborhood: string | null;
   avg_expected_price: number | null;
   currency: string | null;
