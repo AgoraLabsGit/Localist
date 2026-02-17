@@ -1,0 +1,183 @@
+[
+  {
+    "id": "4d4b7105d754a06374d81259",
+    "name": "Food",
+    "path": [
+      "Food"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d1c4941735",
+    "name": "Ice Cream Shop",
+    "path": [
+      "Food",
+      "Ice Cream Shop"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d116941735",
+    "name": "Steakhouse",
+    "path": [
+      "Food",
+      "Steakhouse"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d142941735",
+    "name": "BBQ Joint",
+    "path": [
+      "Food",
+      "BBQ Joint"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d16d941735",
+    "name": "Argentinian Restaurant",
+    "path": [
+      "Food",
+      "Argentinian Restaurant"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d1e0931735",
+    "name": "Café",
+    "path": [
+      "Food",
+      "Café"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d1e0931735",
+    "name": "Coffee Shop",
+    "path": [
+      "Food",
+      "Coffee Shop"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d11e941735",
+    "name": "Restaurant",
+    "path": [
+      "Food",
+      "Restaurant"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d116941735",
+    "name": "Breakfast Spot",
+    "path": [
+      "Food",
+      "Breakfast Spot"
+    ]
+  },
+  {
+    "id": "4d4b7105d754a06376d81259",
+    "name": "Nightlife Spot",
+    "path": [
+      "Nightlife Spot"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d11e941735",
+    "name": "Bar",
+    "path": [
+      "Nightlife Spot",
+      "Bar"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d11d941735",
+    "name": "Cocktail Bar",
+    "path": [
+      "Nightlife Spot",
+      "Cocktail Bar"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d11e941735",
+    "name": "Wine Bar",
+    "path": [
+      "Nightlife Spot",
+      "Wine Bar"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d11f941735",
+    "name": "Nightclub",
+    "path": [
+      "Nightlife Spot",
+      "Nightclub"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d1e7931735",
+    "name": "Speakeasy",
+    "path": [
+      "Nightlife Spot",
+      "Speakeasy"
+    ]
+  },
+  {
+    "id": "4d4b7104d754a06370d81259",
+    "name": "Arts & Entertainment",
+    "path": [
+      "Arts & Entertainment"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d181941735",
+    "name": "Museum",
+    "path": [
+      "Arts & Entertainment",
+      "Museum"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d1e1931735",
+    "name": "Arcade",
+    "path": [
+      "Arts & Entertainment",
+      "Arcade"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d1e1931735",
+    "name": "Movie Theater",
+    "path": [
+      "Arts & Entertainment",
+      "Movie Theater"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d1e0931735",
+    "name": "Park",
+    "path": [
+      "Outdoors & Recreation",
+      "Park"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d1e1931735",
+    "name": "Zoo",
+    "path": [
+      "Outdoors & Recreation",
+      "Zoo"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d1e1931735",
+    "name": "Aquarium",
+    "path": [
+      "Arts & Entertainment",
+      "Aquarium"
+    ]
+  },
+  {
+    "id": "4bf58dd8d48988d18b941735",
+    "name": "Bookstore",
+    "path": [
+      "Shop & Service",
+      "Bookstore"
+    ]
+  }
+]

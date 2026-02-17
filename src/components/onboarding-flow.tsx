@@ -7,7 +7,9 @@
  */
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft } from "lucide-react";
-import { SUPPORTED_CITIES, NEIGHBORHOODS_BY_CITY, getClosestSupportedCity } from "@/lib/cities";
+import { SUPPORTED_CITIES } from "@/lib/cities";
+import { useCities, getClosestCity, type SupportedCity } from "@/hooks/use-cities";
+import { useNeighborhoods } from "@/hooks/use-neighborhoods";
 import { cn } from "@/lib/utils";
 
 const PERSONA_OPTIONS = [
@@ -77,15 +79,18 @@ function CitySelectionStep({
   homeCity,
   onCityChange,
   onNext,
+  cities,
 }: {
   homeCity: string;
   onCityChange: (city: string) => void;
   onNext: () => void;
+  cities: SupportedCity[];
 }) {
   const [query, setQuery] = useState(homeCity);
   const [geoLoading, setGeoLoading] = useState(false);
   const onCityChangeRef = useRef(onCityChange);
   onCityChangeRef.current = onCityChange;
+  const citiesList = cities.length > 0 ? cities : SUPPORTED_CITIES;
 
   useEffect(() => {
     setQuery(homeCity);
@@ -93,12 +98,12 @@ function CitySelectionStep({
 
   useEffect(() => {
     let cancelled = false;
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation || citiesList.length === 0) return;
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (cancelled) return;
-        const city = getClosestSupportedCity(pos.coords.latitude, pos.coords.longitude);
+        const city = getClosestCity(citiesList, pos.coords.latitude, pos.coords.longitude);
         if (city) onCityChangeRef.current(city.name);
         setGeoLoading(false);
       },
@@ -106,12 +111,12 @@ function CitySelectionStep({
       { enableHighAccuracy: false, timeout: 5000 }
     );
     return () => { cancelled = true; };
-  }, []);
+  }, [citiesList.length]);
 
-  const filtered = SUPPORTED_CITIES.filter((c) =>
+  const filtered = citiesList.filter((c) =>
     c.name.toLowerCase().includes(query.trim().toLowerCase())
   );
-  const selectedCity = SUPPORTED_CITIES.find((c) => c.name === homeCity);
+  const selectedCity = citiesList.find((c) => c.name === homeCity);
 
   return (
     <>
@@ -175,6 +180,7 @@ function NeighborhoodSelectionStep({
   onAnotherNeighborhood,
   onNotSure,
   onNext,
+  neighborhoods,
 }: {
   homeCity: string;
   primaryNeighborhood: string | null;
@@ -183,12 +189,10 @@ function NeighborhoodSelectionStep({
   onAnotherNeighborhood: (freeform: string | null) => void;
   onNotSure: () => void;
   onNext: () => void;
+  neighborhoods: string[];
 }) {
   const [showFreeform, setShowFreeform] = useState(!!primaryNeighborhoodFreeform);
   const [freeformValue, setFreeformValue] = useState(primaryNeighborhoodFreeform ?? "");
-
-  const cityId = SUPPORTED_CITIES.find((c) => c.name === homeCity)?.id ?? "buenos-aires";
-  const neighborhoods = NEIGHBORHOODS_BY_CITY[cityId] ?? NEIGHBORHOODS_BY_CITY["buenos-aires"] ?? [];
 
   const handleAnotherSubmit = () => {
     onAnotherNeighborhood(freeformValue.trim() || null);
@@ -351,6 +355,8 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>(DEFAULT_DATA);
   const [saving, setSaving] = useState(false);
+  const { cities } = useCities();
+  const { neighborhoods } = useNeighborhoods(data.home_city);
 
   const totalSteps = 8; // 0–7: City, Neighborhood, Persona, Weekday, Weekend, Categories, Fine-tune, Acquisition
   const progress = step + 1;
@@ -476,6 +482,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
             homeCity={data.home_city}
             onCityChange={(city) => setSingle("home_city", city)}
             onNext={handleNext}
+            cities={cities}
           />
         )}
 
@@ -484,6 +491,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
             homeCity={data.home_city}
             primaryNeighborhood={data.primary_neighborhood}
             primaryNeighborhoodFreeform={data.primary_neighborhood_freeform}
+            neighborhoods={neighborhoods}
             onSelectChip={(n) => {
               setSingle("primary_neighborhood", n);
               setSingle("primary_neighborhood_freeform", null);

@@ -21,6 +21,11 @@ export interface CityConfigFromDb {
     maxCount?: number;
     minReviewsMain?: number;
     minReviewsGem?: number;
+    /** Type-based discovery (migration 022) */
+    googleIncludedType?: string | null;
+    textQueryKeywords?: string | null;
+    minRatingGate?: number | null;
+    minReviewsGate?: number | null;
   }[];
   neighborhoodQueries: { query: string; category: string; neighborhood: string }[];
   geocodeLanguage: string;
@@ -31,6 +36,16 @@ export interface CityConfigFromDb {
   targetVenues: number;
   /** Hard cap on venues per city; stop discovery when reached. */
   maxTotalPerCity?: number;
+  /** Grid tiling (migration 021) */
+  gridRows?: number | null;
+  gridCols?: number | null;
+  minRatingGate?: number | null;
+  minReviewsGate?: number | null;
+  /** Address aliases: names to treat as city-level, not neighborhood (e.g. ["CABA"]) */
+  addressAliases?: string[];
+  /** GeoJSON source for neighborhood sync (optional) */
+  geojsonSourceUrl?: string | null;
+  geojsonNameProperty?: string | null;
 }
 
 export async function loadCityFromDb(
@@ -39,7 +54,7 @@ export async function loadCityFromDb(
 ): Promise<CityConfigFromDb | null> {
   const { data: city, error: cityErr } = await supabase
     .from("cities")
-    .select("id, slug, name, center_lat, center_lng, radius_meters, geocode_language, target_venues, max_total_per_city")
+    .select("id, slug, name, center_lat, center_lng, radius_meters, geocode_language, target_venues, max_total_per_city, grid_rows, grid_cols, min_rating_gate, min_reviews_gate, address_aliases, geojson_source_url, geojson_name_property")
     .eq("slug", slug)
     .eq("status", "active")
     .single();
@@ -50,7 +65,7 @@ export async function loadCityFromDb(
     supabase.from("city_neighborhoods").select("name").eq("city_id", city.id).order("name"),
     supabase
       .from("city_categories")
-      .select("id, slug, search_query, min_rating, target_count, max_count, min_reviews_main, min_reviews_gem")
+      .select("id, slug, search_query, min_rating, target_count, max_count, min_reviews_main, min_reviews_gem, google_included_type, text_query_keywords, min_rating_gate, min_reviews_gate")
       .eq("city_id", city.id)
       .order("slug"),
     supabase
@@ -70,6 +85,10 @@ export async function loadCityFromDb(
     max_count?: number;
     min_reviews_main?: number;
     min_reviews_gem?: number;
+    google_included_type?: string | null;
+    text_query_keywords?: string | null;
+    min_rating_gate?: number | null;
+    min_reviews_gate?: number | null;
   }) => {
     categoryIdBySlug[c.slug] = c.id;
     return {
@@ -81,6 +100,10 @@ export async function loadCityFromDb(
       maxCount: c.max_count ?? undefined,
       minReviewsMain: c.min_reviews_main ?? undefined,
       minReviewsGem: c.min_reviews_gem ?? undefined,
+      googleIncludedType: c.google_included_type ?? undefined,
+      textQueryKeywords: c.text_query_keywords ?? undefined,
+      minRatingGate: c.min_rating_gate ?? undefined,
+      minReviewsGate: c.min_reviews_gate ?? undefined,
     };
   });
 
@@ -106,7 +129,30 @@ export async function loadCityFromDb(
     categoryIdBySlug,
     targetVenues: city.target_venues ?? 150,
     maxTotalPerCity: city.max_total_per_city ?? undefined,
+    gridRows: city.grid_rows ?? undefined,
+    gridCols: city.grid_cols ?? undefined,
+    minRatingGate: city.min_rating_gate ?? undefined,
+    minReviewsGate: city.min_reviews_gate ?? undefined,
+    addressAliases: Array.isArray(city.address_aliases)
+      ? (city.address_aliases as string[]).filter((s): s is string => typeof s === "string")
+      : [],
+    geojsonSourceUrl: city.geojson_source_url ?? undefined,
+    geojsonNameProperty: city.geojson_name_property ?? undefined,
   };
+}
+
+/** Default city slug when none specified. Prefers is_default, else first active by name. */
+export async function getDefaultCitySlug(supabase: SupabaseClient): Promise<string> {
+  const { data: byDefault } = await supabase
+    .from("cities")
+    .select("slug")
+    .eq("status", "active")
+    .eq("is_default", true)
+    .limit(1)
+    .maybeSingle();
+  if (byDefault?.slug) return byDefault.slug;
+  const slugs = await listCitySlugsFromDb(supabase);
+  return slugs[0] ?? "buenos-aires";
 }
 
 export async function listCitySlugsFromDb(supabase: SupabaseClient): Promise<string[]> {

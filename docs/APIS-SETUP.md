@@ -1,5 +1,7 @@
 # APIs: Setup & Compliance
 
+**Data sources breakdown:** See `docs/DATA-SOURCES.md` for Google vs Foursquare fields, gaps when FSQ is missing, and how the AI layer fills null data.
+
 ---
 
 ## Google Places

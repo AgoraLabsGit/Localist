@@ -2,6 +2,7 @@
 
 import { Heart, Star, MapPin, UtensilsCrossed } from "lucide-react";
 import type { Highlight, Venue } from "@/types/database";
+import { toTitleCase } from "@/lib/neighborhoods";
 import { getPrimaryPhotoUrl } from "@/lib/venue-photo";
 
 function formatCategory(cat: string) {
@@ -33,7 +34,7 @@ export function HighlightCard({ highlight, categories, onClick, saved = false, o
   const venue = getVenue(highlight.venue);
   const photoUrl = getPrimaryPhotoUrl(venue);
   const rating = venue?.rating ?? null;
-  const ratingCount = venue?.rating_count ?? 0;
+  const ratingCount = venue?.rating_count ?? null;
   const vibeTags = Array.isArray(highlight.vibe_tags) ? highlight.vibe_tags : [];
   const price = priceLevel(highlight.avg_expected_price);
   const cats = categories ?? [highlight.category];
@@ -78,7 +79,7 @@ export function HighlightCard({ highlight, categories, onClick, saved = false, o
           <h3 className="font-semibold text-foreground">{highlight.title}</h3>
           <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
             <MapPin className="w-3 h-3" />
-            {highlight.neighborhood ?? highlight.city}
+            {toTitleCase(highlight.neighborhood ?? highlight.city ?? "")}
           </div>
           {highlight.short_description && (
             <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
@@ -89,10 +90,14 @@ export function HighlightCard({ highlight, categories, onClick, saved = false, o
             {rating != null && (
               <div className="flex items-center gap-1 text-xs">
                 <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                <span className="font-medium">{rating}</span>
-                <span className="text-muted-foreground">
-                  ({ratingCount.toLocaleString()})
+                <span className="font-medium">
+                  {rating === 9 && ratingCount == null ? "9+" : rating}
                 </span>
+                {ratingCount != null && ratingCount > 0 && (
+                  <span className="text-muted-foreground">
+                    ({ratingCount.toLocaleString()})
+                  </span>
+                )}
               </div>
             )}
             <div className="flex gap-1 flex-wrap">

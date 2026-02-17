@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { validateSupportedCity } from "@/lib/cities";
+import { validateCityFromDb } from "@/lib/cities-db";
 import type { OnboardingData } from "@/components/onboarding-flow";
 
 export async function POST(req: Request) {
@@ -18,8 +18,10 @@ export async function POST(req: Request) {
       ? [data.primary_neighborhood]
       : [];
 
-  const rawCity = (data.home_city ?? "Buenos Aires").trim() || "Buenos Aires";
-  const homeCity = validateSupportedCity(rawCity) ?? "Buenos Aires";
+  const { getDefaultCityNameFromDb } = await import("@/lib/cities-db");
+  const defaultCity = await getDefaultCityNameFromDb();
+  const rawCity = (data.home_city ?? defaultCity).trim() || defaultCity;
+  const homeCity = (await validateCityFromDb(rawCity)) ?? defaultCity;
   const userCities = [{
     city: homeCity,
     primary_neighborhood: data.primary_neighborhood ?? null,

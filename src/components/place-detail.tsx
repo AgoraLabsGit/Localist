@@ -223,7 +223,9 @@ export function PlaceDetail({ highlightId, onClose, saved = false, onToggleSave,
                 {(data.rating != null || data.user_rating_count != null) && (
                   <div className="flex items-center gap-2 text-sm">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-medium">{data.rating}</span>
+                    <span className="font-medium">
+                      {data.rating === 9 && data.user_rating_count == null ? "9+" : data.rating}
+                    </span>
                     {data.user_rating_count != null && (
                       <span className="text-muted-foreground">
                         ({data.user_rating_count.toLocaleString()} reviews)

@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
+import { getDefaultCityNameFromDb, validateCityFromDb } from "@/lib/cities-db";
 import { NextResponse } from "next/server";
-import { validateSupportedCity } from "@/lib/cities";
 
 export async function GET() {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const defaultCity = await getDefaultCityNameFromDb();
   const [prefsRes, userRes] = await Promise.all([
     supabase
       .from("user_preferences")
@@ -20,7 +21,7 @@ export async function GET() {
     return NextResponse.json({ error: prefsRes.error.message }, { status: 500 });
   }
 
-  const homeCity = (userRes.data?.home_city as string) ?? "Buenos Aires";
+  const homeCity = (userRes.data?.home_city as string) ?? defaultCity;
   const userCities = (prefsRes.data?.user_cities as Array<{ city: string; primary_neighborhood: string | null; primary_neighborhood_freeform: string | null; is_home: boolean }>) ?? [];
 
   return NextResponse.json({
@@ -52,7 +53,7 @@ export async function PATCH(req: Request) {
   if (primary_neighborhood_freeform !== undefined) prefUpdates.primary_neighborhood_freeform = primary_neighborhood_freeform ?? null;
 
   const rawCity = typeof home_city === "string" ? home_city.trim() : "";
-  const validatedCity = rawCity ? validateSupportedCity(rawCity) : null;
+  const validatedCity = rawCity ? await validateCityFromDb(rawCity) : null;
   if (validatedCity === null && rawCity) {
     return NextResponse.json({ error: "Unsupported city" }, { status: 400 });
   }
@@ -68,7 +69,8 @@ export async function PATCH(req: Request) {
       supabase.from("users").select("home_city").eq("id", user.id).single(),
       supabase.from("user_preferences").select("primary_neighborhood, primary_neighborhood_freeform").eq("user_id", user.id).single(),
     ]);
-    const city = newHomeCity ?? (userRow?.home_city as string) ?? "Buenos Aires";
+    const defaultCity = await getDefaultCityNameFromDb();
+    const city = newHomeCity ?? (userRow?.home_city as string) ?? defaultCity;
     const pn = primary_neighborhood !== undefined ? primary_neighborhood ?? null : (prefRow?.primary_neighborhood as string) ?? null;
     const pnf = primary_neighborhood_freeform !== undefined ? primary_neighborhood_freeform ?? null : (prefRow?.primary_neighborhood_freeform as string) ?? null;
     prefUpdates.user_cities = [{ city, primary_neighborhood: pn, primary_neighborhood_freeform: pnf, is_home: true }];

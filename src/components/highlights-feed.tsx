@@ -34,9 +34,11 @@ interface HighlightsFeedProps {
   initialSavedIds: string[];
   user: User | null;
   preferences?: Preferences;
+  /** Neighborhoods for Area filter. From city_neighborhoods + distinct from highlights. */
+  neighborhoods?: string[];
 }
 
-export function HighlightsFeed({ highlights, initialSavedIds, user, preferences = { preferred_neighborhoods: [], interests: [], persona_type: null, primary_neighborhood: null, home_city: "Buenos Aires" } }: HighlightsFeedProps) {
+export function HighlightsFeed({ highlights, initialSavedIds, user, preferences = { preferred_neighborhoods: [], interests: [], persona_type: null, primary_neighborhood: null, home_city: "Buenos Aires" }, neighborhoods = [] }: HighlightsFeedProps) {
   const [filters, setFilters] = useState<FilterState>({
     category: "all",
     neighborhood: "all",
@@ -312,6 +314,7 @@ export function HighlightsFeed({ highlights, initialSavedIds, user, preferences 
         onApply={() => setFilterSheetOpen(false)}
         resultsCount={filtered.length}
         preferredNeighborhoods={preferences.preferred_neighborhoods}
+        neighborhoods={neighborhoods.length > 0 ? neighborhoods : undefined}
       />
       <ConciergeFilterSheet
         open={conciergeFilterOpen}

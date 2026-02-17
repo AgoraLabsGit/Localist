@@ -1,15 +1,19 @@
 /**
- * Compute quality_score for venues. Uses Foursquare data only (no Google).
+ * Compute quality_score, is_hidden_gem, is_local_favorite for venues.
+ * Uses Foursquare data only (no Google).
  *
  * Formula: FSQ rating (0-10) + rating_count signal, capped at 60 when has_fsq_data=false.
  * Boost: is_featured +15. Slight penalty for is_hidden_gem (lower signal).
+ *
+ * Classification (FSQ rating + rating_count):
+ * - is_hidden_gem: high rating (≥8.5), low reviews (<50) — strong signal, small sample
+ * - is_local_favorite: high rating (≥8.2), medium+ reviews (≥50) — not touristy by count
  *
  * Usage:
  *   npx tsx scripts/compute-quality-scores.ts [city-slug]
  *   npx tsx scripts/compute-quality-scores.ts --all    # All cities
  *
  * Run after ingest. Safe to re-run; idempotent.
- * See docs/DATA-PIPELINE.md
  */
 
 import { config } from "dotenv";
@@ -23,7 +27,12 @@ const supabase = createClient(
 
 const CAP_WHEN_NO_FSQ = 60;
 const FEATURED_BOOST = 15;
-const HIDDEN_GEM_PENALTY = 0.9; // Slight penalty (lower review signal)
+const HIDDEN_GEM_PENALTY = 0.9;
+
+const HIDDEN_GEM_MIN_RATING = 8.5;
+const HIDDEN_GEM_MAX_REVIEWS = 50;
+const LOCAL_FAVORITE_MIN_RATING = 8.2;
+const LOCAL_FAVORITE_MIN_REVIEWS = 50;
 
 function computeRawScore(rating: number | null, ratingCount: number | null): number {
   if (rating == null || rating < 0) return 0;
@@ -47,6 +56,19 @@ function computeQualityScore(row: {
   return Math.round(Math.min(100, Math.max(0, score)));
 }
 
+function classifyVenue(rating: number | null, ratingCount: number | null, hasFsqData: boolean): {
+  is_hidden_gem: boolean;
+  is_local_favorite: boolean;
+} {
+  if (!hasFsqData || rating == null) return { is_hidden_gem: false, is_local_favorite: false };
+  const r = rating;
+  const n = ratingCount ?? 0;
+  const is_hidden_gem = r >= HIDDEN_GEM_MIN_RATING && n < HIDDEN_GEM_MAX_REVIEWS && n > 0;
+  const is_local_favorite =
+    r >= LOCAL_FAVORITE_MIN_RATING && n >= LOCAL_FAVORITE_MIN_REVIEWS && !is_hidden_gem;
+  return { is_hidden_gem, is_local_favorite };
+}
+
 async function main() {
   const args = process.argv.filter((a) => !a.startsWith("--"));
   const citySlug = args[2];
@@ -68,7 +90,7 @@ async function main() {
 
   let query = supabase
     .from("venues")
-    .select("id, name, city, rating, rating_count, has_fsq_data, is_hidden_gem");
+    .select("id, name, city, rating, rating_count, has_fsq_data, is_hidden_gem, is_local_favorite");
 
   if (cityName) query = query.eq("city", cityName);
 
@@ -93,11 +115,16 @@ async function main() {
 
   let updated = 0;
   for (const v of venues) {
+    const { is_hidden_gem, is_local_favorite } = classifyVenue(
+      v.rating,
+      v.rating_count,
+      v.has_fsq_data ?? true
+    );
     const score = computeQualityScore({
       rating: v.rating,
       rating_count: v.rating_count,
       has_fsq_data: v.has_fsq_data ?? true,
-      is_hidden_gem: v.is_hidden_gem ?? false,
+      is_hidden_gem,
       is_featured: featuredSet.has(v.id),
     });
 
@@ -105,6 +132,8 @@ async function main() {
       .from("venues")
       .update({
         quality_score: score,
+        is_hidden_gem,
+        is_local_favorite,
         updated_at: new Date().toISOString(),
       })
       .eq("id", v.id);

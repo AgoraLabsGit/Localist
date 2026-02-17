@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getDefaultCityNameFromDb } from "@/lib/cities-db";
 import { NextResponse } from "next/server";
 import {
   getTimeContext,
@@ -33,6 +34,7 @@ export async function GET(req: Request) {
   if (typeGroup) filterOverrides.typeGroup = typeGroup;
 
   const timeContext = filterOverrides.timeContextOverride ?? getTimeContext(new Date());
+  const defaultCity = await getDefaultCityNameFromDb();
 
   const [{ data: userRow }, { data: prefs }, highlightsRes, { data: savedData }] = await Promise.all([
     supabase.from("users").select("home_city").eq("id", user.id).single(),
@@ -53,7 +55,7 @@ export async function GET(req: Request) {
           .from("highlights")
           .select("*, venue:venues(*)")
           .eq("status", "active")
-          .eq("city", (r.data?.home_city as string) ?? "Buenos Aires")
+          .eq("city", (r.data?.home_city as string) ?? defaultCity)
           .order("title")
       ),
     supabase
@@ -63,7 +65,7 @@ export async function GET(req: Request) {
       .eq("target_type", "highlight"),
   ]);
 
-  const homeCity = (userRow?.home_city as string) ?? "Buenos Aires";
+  const homeCity = (userRow?.home_city as string) ?? defaultCity;
   const rawHighlights = highlightsRes && !highlightsRes.error ? (highlightsRes.data ?? []) : [];
   const highlights = [...rawHighlights].sort((a, b) => {
     const va = Array.isArray(a.venue) ? a.venue[0] : a.venue;

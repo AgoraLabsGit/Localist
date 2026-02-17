@@ -51,6 +51,8 @@ interface FilterSheetProps {
   resultsCount: number;
   /** User's preferred neighborhoods — adds "Your neighborhood" option */
   preferredNeighborhoods?: string[];
+  /** Neighborhoods for Area filter. From DB + highlights. When omitted, uses hardcoded NEIGHBORHOODS. */
+  neighborhoods?: string[];
 }
 
 function ChipRow({
@@ -108,10 +110,12 @@ export function FilterSheet({
   onApply,
   resultsCount,
   preferredNeighborhoods = [],
+  neighborhoods,
 }: FilterSheetProps) {
-  const neighborhoodOptions = preferredNeighborhoods.length > 0
-    ? [YOUR_NEIGHBORHOOD as const, ...NEIGHBORHOODS]
-    : NEIGHBORHOODS;
+  const baseNeighborhoods = neighborhoods ?? [...NEIGHBORHOODS].filter((n) => n !== "all");
+  const neighborhoodOptions: string[] = preferredNeighborhoods.length > 0
+    ? [YOUR_NEIGHBORHOOD, "all", ...baseNeighborhoods]
+    : ["all", ...baseNeighborhoods];
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
   useEffect(() => {

@@ -23,7 +23,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 import { createClient } from "@supabase/supabase-js";
 import { getCityConfig, listCitySlugs, type CityConfig } from "./config/cities";
-import { loadCityFromDb, listCitySlugsFromDb, type CityConfigFromDb } from "./lib/load-city-from-db";
+import { loadCityFromDb, listCitySlugsFromDb, getDefaultCitySlug, type CityConfigFromDb } from "./lib/load-city-from-db";
 import { loadPipelineSettings, resolveMaxFoursquareCalls } from "../src/lib/admin-settings";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY!;
@@ -332,8 +332,7 @@ async function getFoursquareDetails(fsqId: string, city: CityConfig): Promise<Fo
 
 function guessNeighborhoodFromName(name: string, city: CityConfig): string | null {
   const n = name.trim();
-  const cityName = city.cityFallbackName ?? city.name;
-  if (!n || n === cityName || n === "CABA") return null;
+  if (!n || isCityLevelAlias(n, city)) return null;
   const match = city.neighborhoods.find(
     (known) => n.toLowerCase() === known.toLowerCase() || n.toLowerCase().startsWith(known.toLowerCase() + " ")
   );
@@ -370,10 +369,15 @@ function extractNeighborhoodFromAddressComponents(
           name.toLowerCase().startsWith(n.toLowerCase() + " ")
       );
       if (match) return match;
-      if (name !== cityName && name !== "CABA") return name;
+      if (name && !isCityLevelAlias(name, city)) return name;
     }
   }
   return null;
+}
+
+function isCityLevelAlias(name: string, city: CityConfig & { addressAliases?: string[] }): boolean {
+  const cityName = city.cityFallbackName ?? city.name;
+  return name === cityName || (city.addressAliases ?? []).some((a) => a.toLowerCase() === name.toLowerCase());
 }
 
 async function resolveNeighborhoodFromCoords(
@@ -411,7 +415,7 @@ async function resolveNeighborhoodFromCoords(
           (n) => name.toLowerCase() === n.toLowerCase() || name.toLowerCase().startsWith(n.toLowerCase() + " ")
         );
         if (match) return match;
-        if (name && name !== cityName && name !== "CABA") return name;
+        if (name && !isCityLevelAlias(name, city)) return name;
       }
     }
   }
@@ -476,7 +480,8 @@ async function upsertVenue(
     payload.opening_hours = null;
     payload.phone = null;
     payload.website_url = null;
-    payload.rating = null;
+    // Default 9 when no FSQ: venues passed ingest gate (4.5+ Google stars); 4.5 × 2 ≈ 9 on FSQ 0–10 scale
+    payload.rating = 9;
     payload.rating_count = null;
     payload.photo_urls = [];
   }
@@ -543,7 +548,7 @@ async function upsertHighlight(
 
 async function main() {
   const args = process.argv.filter((a) => !a.startsWith("--"));
-  const citySlug = args[2] ?? "buenos-aires";
+  const citySlug = args[2] ?? (await getDefaultCitySlug(supabase));
   const INCREMENTAL = process.argv.includes("--incremental");
   const LIST_CITIES = process.argv.includes("--list");
 

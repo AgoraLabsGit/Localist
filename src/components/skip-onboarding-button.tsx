@@ -12,7 +12,7 @@ export function SkipOnboardingButton() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          home_city: "Buenos Aires",
+          home_city: null,
           primary_neighborhood: null,
           primary_neighborhood_freeform: null,
           preferred_neighborhoods: [],

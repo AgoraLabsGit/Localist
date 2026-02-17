@@ -2,13 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { HighlightsFeed } from "@/components/highlights-feed";
 import { createClient } from "@/lib/supabase/server";
+import { getDefaultCityNameFromDb } from "@/lib/cities-db";
+import { dedupeAndNormalize } from "@/lib/neighborhoods";
 
 export default async function Home() {
   const supabase = createClient();
   const authRes = await supabase.auth.getUser();
   const user = authRes.data?.user ?? null;
 
-  let activeCity = "Buenos Aires";
+  const defaultCity = await getDefaultCityNameFromDb();
+  let activeCity = defaultCity;
   if (user) {
     const { data: prefs } = await supabase
       .from("user_preferences")
@@ -19,10 +22,10 @@ export default async function Home() {
       redirect("/onboarding");
     }
     const { data: userRow } = await supabase.from("users").select("home_city").eq("id", user.id).single();
-    activeCity = (userRow?.home_city as string) ?? "Buenos Aires";
+    activeCity = (userRow?.home_city as string) ?? defaultCity;
   }
 
-  const [highlightsRes, savedIds, preferences] = await Promise.all([
+  const [highlightsRes, savedIds, preferences, cityRow] = await Promise.all([
     supabase
       .from("highlights")
       .select("*, venue:venues(*)")
@@ -48,10 +51,26 @@ export default async function Home() {
           primary_neighborhood: (prefs.data?.primary_neighborhood as string) ?? null,
           home_city: (userRow.data?.home_city as string) ?? "Buenos Aires",
         }))
-      : Promise.resolve({ preferred_neighborhoods: [] as string[], interests: [] as string[], persona_type: null, primary_neighborhood: null, home_city: "Buenos Aires" }),
+      : Promise.resolve({ preferred_neighborhoods: [] as string[], interests: [] as string[], persona_type: null, primary_neighborhood: null, home_city: defaultCity }),
+    (async () => {
+      const slug = activeCity.toLowerCase().replace(/\s+/g, "-");
+      const byName = await supabase.from("cities").select("id").eq("name", activeCity).eq("status", "active").maybeSingle();
+      if (byName.data) return byName;
+      return supabase.from("cities").select("id").eq("slug", slug).eq("status", "active").maybeSingle();
+    })(),
   ]);
 
   const rawHighlights = highlightsRes.error ? [] : (highlightsRes.data ?? []);
+  const fromHighlights = [...new Set(rawHighlights.map((h) => (h as { neighborhood?: string | null }).neighborhood).filter(Boolean))] as string[];
+  const fromDb = cityRow?.data
+    ? await supabase
+        .from("city_neighborhoods")
+        .select("name")
+        .eq("city_id", cityRow.data.id)
+        .order("name")
+        .then((r) => (r.data ?? []).map((n) => n.name))
+    : [];
+  const neighborhoods = dedupeAndNormalize([...fromDb, ...fromHighlights]);
   const highlights = [...rawHighlights].sort((a, b) => {
     const va = Array.isArray(a.venue) ? a.venue[0] : a.venue;
     const vb = Array.isArray(b.venue) ? b.venue[0] : b.venue;
@@ -69,7 +88,7 @@ export default async function Home() {
           <div>
             <h1 className="text-xl font-bold text-primary">Localist</h1>
             <p className="text-xs text-muted-foreground">
-              {preferences.home_city ?? "Buenos Aires"}
+              {preferences.home_city ?? defaultCity}
             </p>
           </div>
           <Link
@@ -88,6 +107,7 @@ export default async function Home() {
           initialSavedIds={savedIds}
           user={user}
           preferences={preferences}
+          neighborhoods={neighborhoods}
         />
       </div>
       <footer className="max-w-lg mx-auto px-4 py-3 text-center">

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SUPPORTED_CITIES, NEIGHBORHOODS_BY_CITY, getClosestSupportedCity } from "@/lib/cities";
+import { SUPPORTED_CITIES } from "@/lib/cities";
+import { useCities, getClosestCity } from "@/hooks/use-cities";
+import { useNeighborhoods } from "@/hooks/use-neighborhoods";
 import { cn } from "@/lib/utils";
 
 interface LocationPrefs {
@@ -21,6 +23,8 @@ export function LocationSection() {
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [showFreeform, setShowFreeform] = useState(false);
   const [freeformValue, setFreeformValue] = useState("");
+  const { cities } = useCities();
+  const { neighborhoods } = useNeighborhoods(prefs.home_city);
 
   useEffect(() => {
     fetch("/api/preferences")
@@ -35,9 +39,6 @@ export function LocationSection() {
       })
       .finally(() => setLoading(false));
   }, []);
-
-  const cityId = SUPPORTED_CITIES.find((c) => c.name === prefs.home_city)?.id ?? "buenos-aires";
-  const neighborhoods = NEIGHBORHOODS_BY_CITY[cityId] ?? NEIGHBORHOODS_BY_CITY["buenos-aires"] ?? [];
 
   const save = async (updates: Partial<LocationPrefs>) => {
     setSaving(true);
@@ -73,6 +74,7 @@ export function LocationSection() {
             onCityChange={(city) => save({ home_city: city })}
             onCancel={() => setShowCityPicker(false)}
             saving={saving}
+            cities={cities}
           />
         ) : (
           <p className="text-muted-foreground">
@@ -169,23 +171,26 @@ function CityPicker({
   onCityChange,
   onCancel,
   saving,
+  cities,
 }: {
   homeCity: string;
   onCityChange: (city: string) => void;
   onCancel: () => void;
   saving: boolean;
+  cities: { id: string; name: string; center?: { lat: number; lng: number } }[];
 }) {
   const [query, setQuery] = useState("");
   const [geoLoading, setGeoLoading] = useState(false);
+  const citiesList = cities.length > 0 ? cities : SUPPORTED_CITIES;
 
   useEffect(() => {
     let cancelled = false;
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation || citiesList.length === 0) return;
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (cancelled) return;
-        const city = getClosestSupportedCity(pos.coords.latitude, pos.coords.longitude);
+        const city = getClosestCity(citiesList, pos.coords.latitude, pos.coords.longitude);
         if (city) onCityChange(city.name);
         setGeoLoading(false);
       },
@@ -193,12 +198,12 @@ function CityPicker({
       { enableHighAccuracy: false, timeout: 5000 }
     );
     return () => { cancelled = true; };
-  }, [onCityChange]);
+  }, [onCityChange, citiesList.length]);
 
-  const filtered = SUPPORTED_CITIES.filter((c) =>
+  const filtered = citiesList.filter((c) =>
     c.name.toLowerCase().includes(query.trim().toLowerCase())
   );
-  const selectedCity = SUPPORTED_CITIES.find((c) => c.name === homeCity);
+  const selectedCity = citiesList.find((c) => c.name === homeCity);
 
   return (
     <div className="space-y-2">

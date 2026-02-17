@@ -12,8 +12,8 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY!;
-const BA_LAT = -34.6037;
-const BA_LNG = -58.3816;
+const DEFAULT_LAT = -34.6037;
+const DEFAULT_LNG = -58.3816;
 
 const FSQ_HEADERS = {
   Authorization: `Bearer ${FOURSQUARE_API_KEY}`,
@@ -22,16 +22,18 @@ const FSQ_HEADERS = {
 };
 
 async function main() {
-  const query = process.argv[2] ?? "Backroom Bar";
+  const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+  const query = args[0] ?? "Backroom Bar";
+
   if (!FOURSQUARE_API_KEY) {
     console.error("❌ FOURSQUARE_API_KEY required in .env.local");
     process.exit(1);
   }
 
-  console.log(`\n🔍 Foursquare Places API search: "${query}" near BA (${BA_LAT}, ${BA_LNG})\n`);
+  console.log(`\n🔍 Foursquare Places API search: "${query}" near (${DEFAULT_LAT}, ${DEFAULT_LNG})\n`);
 
   const searchUrl = new URL("https://places-api.foursquare.com/places/search");
-  searchUrl.searchParams.set("ll", `${BA_LAT},${BA_LNG}`);
+  searchUrl.searchParams.set("ll", `${DEFAULT_LAT},${DEFAULT_LNG}`);
   searchUrl.searchParams.set("query", query);
   searchUrl.searchParams.set("limit", "10");
   searchUrl.searchParams.set("fields", "name,fsq_place_id,location,hours,tel,website,rating");

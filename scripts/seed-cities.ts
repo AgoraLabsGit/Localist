@@ -12,6 +12,26 @@ import { createClient } from "@supabase/supabase-js";
 import { buenosAires, newOrleans, UNIVERSAL_CATEGORIES } from "./config/cities";
 import { getCategoryGroup } from "../src/lib/universal-categories";
 
+/** Category slug → google_included_type, text_query_keywords (for type-based discovery) */
+const DISCOVERY_MAP: Record<string, { google_included_type: string; text_query_keywords?: string }> = {
+  cafe: { google_included_type: "cafe" },
+  cocktail_bar: { google_included_type: "bar" },
+  wine_bar: { google_included_type: "bar" },
+  bar: { google_included_type: "bar" },
+  restaurant: { google_included_type: "restaurant" },
+  brunch: { google_included_type: "restaurant" },
+  parrilla: { google_included_type: "restaurant", text_query_keywords: "parrilla,asado" },
+  heladeria: { google_included_type: "ice_cream_shop" },
+  museum: { google_included_type: "museum" },
+  park: { google_included_type: "park" },
+  night_club: { google_included_type: "night_club" },
+  theater: { google_included_type: "movie_theater" },
+  bookstore: { google_included_type: "book_store" },
+  tango_bar: { google_included_type: "bar", text_query_keywords: "milonga,tango" },
+  rooftop: { google_included_type: "bar", text_query_keywords: "rooftop" },
+  music_venue: { google_included_type: "night_club", text_query_keywords: "live music" },
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -67,6 +87,7 @@ async function seedCity(config: typeof buenosAires) {
     const group = getCategoryGroup(cat.category);
     const displayName = universal?.displayName ?? cat.category.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+    const discovery = DISCOVERY_MAP[cat.category];
     const { data: catRow, error: catErr } = await supabase
       .from("city_categories")
       .upsert(
@@ -78,6 +99,8 @@ async function seedCity(config: typeof buenosAires) {
           min_rating: cat.minRating ?? 4.5,
           category_group: group,
           is_city_specific: cat.isCitySpecific ?? false,
+          google_included_type: discovery?.google_included_type ?? null,
+          text_query_keywords: discovery?.text_query_keywords ?? null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "city_id,slug" }
