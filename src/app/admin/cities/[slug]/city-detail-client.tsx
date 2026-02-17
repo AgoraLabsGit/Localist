@@ -70,7 +70,7 @@ export function CityDetailClient({
           <span className="rounded bg-muted px-2 py-0.5">lat: {city.center_lat}</span>
           <span className="rounded bg-muted px-2 py-0.5">lng: {city.center_lng}</span>
           <span className="rounded bg-muted px-2 py-0.5">radius: {city.radius_meters}m</span>
-          <span className="rounded bg-muted px-2 py-0.5">target: {city.target_venues ?? 150} venues</span>
+          <span className="rounded bg-muted px-2 py-0.5">target: {(city as { target_venues?: number }).target_venues ?? 150} venues</span>
           <span className="rounded bg-muted px-2 py-0.5">lang: {city.geocode_language}</span>
         </div>
       </div>

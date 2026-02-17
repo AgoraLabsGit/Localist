@@ -40,13 +40,16 @@ export default async function AdminCityPage({
       .eq("city_id", city.id),
   ]);
 
-  const neighborhoodQueries = (nqWithCat ?? []).map((nq: { id: string; neighborhood_name: string; search_query: string; min_rating: number; city_categories: { slug: string } | null }) => ({
-    id: nq.id,
-    neighborhood_name: nq.neighborhood_name,
-    search_query: nq.search_query,
-    min_rating: nq.min_rating,
-    category: nq.city_categories?.slug ?? "",
-  }));
+  const neighborhoodQueries = (nqWithCat ?? []).map((nq) => {
+    const cat = Array.isArray(nq.city_categories) ? nq.city_categories[0] : nq.city_categories;
+    return {
+      id: nq.id,
+      neighborhood_name: nq.neighborhood_name,
+      search_query: nq.search_query,
+      min_rating: nq.min_rating,
+      category: (cat as { slug?: string } | null)?.slug ?? "",
+    };
+  });
 
   return (
     <div className="space-y-6">
