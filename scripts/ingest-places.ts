@@ -898,6 +898,10 @@ async function main() {
     finished_at: new Date().toISOString(),
     items_fetched: totalFetched,
     items_successful: totalSaved,
+    run_metadata: {
+      fsq_calls: fsqCallsMade,
+      city_slug: citySlug ?? city.id,
+    },
   });
 
   if (INCREMENTAL && totalSkipped > 0) {

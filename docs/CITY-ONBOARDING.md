@@ -10,10 +10,14 @@ Clean pipeline for adding new cities to Localist. Follow this checklist to ensur
 
 | Table | Purpose |
 |-------|---------|
-| `cities` | center, radius, grid_rows, grid_cols, address_aliases, geojson_source_url, geojson_name_property |
+| `cities` | center, radius, grid_rows, grid_cols, population, address_aliases, geojson_source_url, geojson_name_property |
 | `city_neighborhoods` | Neighborhoods for filters; `geom` for PostGIS lookup |
-| `city_categories` | google_included_type, text_query_keywords, min_rating_gate, max_count |
+| `city_categories` | google_included_type, text_query_keywords, min_rating_gate, min_reviews_gate, max_count, per_tile_max, min_results_per_tile |
 | `city_neighborhood_queries` | Neighborhood-targeted discovery (legacy) |
+
+**Population** (nullable): Metro population for deriving caps and gates. Null = midsize (2M) fallback. Set via AI onboarding or manual: `UPDATE cities SET population = 15000000 WHERE slug = 'buenos-aires';`
+
+**Caps** (per-category): `max_count` and `per_tile_max` scale with radius and population. Dense metros get hundreds of venues per category. Per-tile caps prevent one tile from taking everything while allowing dense neighborhoods (e.g. Palermo) to be richly populated. When null, ingest derives from `deriveVenueCaps()`. DB overrides take precedence.
 
 ---
 
@@ -94,9 +98,14 @@ Populates `city_categories` with universal + city-specific categories. Also sets
 
 ### 6. Run Ingest
 
+**Live city (coverage improvements):**
 ```bash
-npm run ingest:places:typed buenos-aires
+npm run ingest:places:typed -- buenos-aires --force --incremental
 ```
+`--force` bypasses `max_total_per_city` so discovery runs. `--incremental` skips Foursquare for venues that already have data.
+
+**Fresh city (first run):** Omit `--incremental`; add `--force` if you hit venue cap.
+
 Uses tiling, PostGIS neighborhoods, and type-based discovery.
 
 ---
@@ -105,7 +114,9 @@ Uses tiling, PostGIS neighborhoods, and type-based discovery.
 
 ```bash
 npx tsx scripts/fetch-venue-photos.ts
+npm run fetch:venue-tips buenos-aires   # optional; tips for AI enrichment
 npm run compute:scores buenos-aires
+npm run enrich:venues:ai buenos-aires   # Phase 2; after coverage confirmed
 ```
 
 ---
@@ -140,7 +151,9 @@ So: run `sync:neighborhoods [city-slug]` **before** ingest to populate all neigh
 - [ ] Grid params set (optional)
 - [ ] Categories seeded (`seed-cities`)
 - [ ] Polygons imported (if GeoJSON available)
-- [ ] Ingest run (`ingest:places:typed [slug]`)
+- [ ] Ingest run (`ingest:places:typed -- [slug] --force --incremental` for live cities)
 - [ ] Photos + scores run
+- [ ] Verify coverage (e.g. Villa Urquiza cafés)
+- [ ] AI enrichment (`npm run enrich:venues:ai` [slug]) — Phase 2, after coverage confirmed
 - [ ] Verify Area filter shows expected neighborhoods
 - [ ] Add city to DB; app uses `GET /api/cities` for supported cities

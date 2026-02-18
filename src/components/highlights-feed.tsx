@@ -4,8 +4,17 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { HighlightCard } from "./highlight-card";
 import { PlaceDetail } from "./place-detail";
 import { TabNav, type Tab } from "./tab-nav";
-import { Search } from "lucide-react";
+import { Search, ChevronLeft } from "lucide-react";
 import { FilterSheet, FilterPill, formatFilterLabel, TYPE_GROUPS, FAVORITE_NEIGHBORHOODS, NEAR_ME, type FilterState } from "./filter-sheet";
+import { EXPLORE_CATEGORIES } from "@/lib/explore-categories";
+import {
+  FilterChipRow,
+  CategoryHeader,
+  getInitialHighlightsFilters,
+  highlightsFiltersToFilterState,
+  vibeFilterToDb,
+  type HighlightsFilterState,
+} from "./highlights-filters";
 import { ConciergeFilterSheet, type ConciergeFilterState } from "./concierge-filter-sheet";
 import { cn } from "@/lib/utils";
 import { toTitleCase } from "@/lib/neighborhoods";
@@ -46,16 +55,30 @@ interface HighlightsFeedProps {
   preferences?: Preferences;
   /** Neighborhoods for Area filter. From city_neighborhoods + distinct from highlights. */
   neighborhoods?: string[];
+  /** Pre-applied from URL (e.g. /?category=cafes&vibe=solo_friendly) */
+  initialCategory?: string;
+  initialVibe?: string;
+  /** Initial tab from URL (e.g. /?tab=explore) */
+  initialTab?: string;
 }
 
 const YOUR_PLACES_SUBTABS = ["Saved", "Favorites", "Visited"] as const;
 type YourPlacesSubTab = (typeof YOUR_PLACES_SUBTABS)[number];
 
-export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialTagsByPlaceId = {}, user, preferences = { preferred_neighborhoods: [], interests: [], persona_type: null, home_neighborhood: null, home_city: "Buenos Aires" }, neighborhoods = [] }: HighlightsFeedProps) {
+function parseTab(tab?: string): Tab | null {
+  if (!tab) return null;
+  const normalized = tab.toLowerCase().replace(/\s+/g, "-");
+  if (normalized === "explore") return "Explore";
+  if (normalized === "concierge") return "Concierge";
+  if (normalized === "my-places") return "My Places";
+  return null;
+}
+
+export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialTagsByPlaceId = {}, user, preferences = { preferred_neighborhoods: [], interests: [], persona_type: null, home_neighborhood: null, home_city: "Buenos Aires" }, neighborhoods = [], initialCategory, initialVibe, initialTab }: HighlightsFeedProps) {
   const [filters, setFilters] = useState<FilterState>({
-    category: "all",
+    category: initialCategory ?? "all",
     neighborhoods: [],
-    vibe: "all",
+    vibe: initialVibe ?? "all",
     tags: [],
     ratingMin: undefined,
   });
@@ -83,11 +106,36 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
   const [selectedPlaceRating, setSelectedPlaceRating] = useState<number | undefined>(undefined);
   const [selectedUserTags, setSelectedUserTags] = useState<string[]>([]);
   const [selectedToggleSaveId, setSelectedToggleSaveId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>(user ? "Concierge" : "Explore");
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const fromUrl = parseTab(initialTab);
+    if (fromUrl) return fromUrl;
+    if (initialCategory || initialVibe) return "Explore";
+    return user ? "Concierge" : "Explore";
+  });
   const [yourPlacesSubTab, setYourPlacesSubTab] = useState<YourPlacesSubTab>("Saved");
   const [userStateByPlaceId, setUserStateByPlaceId] = useState<Record<string, UserPlaceState>>(initialUserStateByPlaceId);
+  const [tagsByPlaceId, setTagsByPlaceId] = useState<Record<string, string[]>>(() => ({ ...initialTagsByPlaceId }));
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [exploreView, setExploreView] = useState<"cards" | "list">("cards");
+  const [highlightsFilterState, setHighlightsFilterState] = useState<HighlightsFilterState>({
+    time: null,
+    area: null,
+    price: null,
+    vibe: null,
+  });
+
+  const handleTabChange = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+    if (tab === "Explore") {
+      setExploreView("cards");
+      setFilters((prev) => ({ ...prev, category: "all", vibe: "all", neighborhoods: [] }));
+      setSearchQuery("");
+      setHighlightsFilterState({ time: null, area: null, price: null, vibe: null });
+    } else {
+      setExploreView("cards");
+    }
+  }, []);
 
   const toggleSave = useCallback(
     async (highlightId: string, currentlySaved: boolean) => {
@@ -234,8 +282,22 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
   const filtered = useMemo(() => {
     const { neighborhoods: parsedNeighborhoods, category: parsedCategory, text: parsedText } = parsedSearch;
     const effectiveCategory = parsedCategory !== "all" ? parsedCategory : filters.category;
-    const effectiveNeighborhoods = parsedNeighborhoods.length > 0 ? parsedNeighborhoods : filters.neighborhoods;
+    let effectiveNeighborhoods = parsedNeighborhoods.length > 0 ? parsedNeighborhoods : filters.neighborhoods;
+    const isExploreListView = activeTab === "Explore" && exploreView === "list";
+    if (isExploreListView) {
+      const areaMap = highlightsFiltersToFilterState(highlightsFilterState, effectiveNeighborhoods);
+      // Chip area (near_me, my_barrios) overrides only when FilterSheet has no explicit neighborhoods
+      const hasExplicitNeighborhoods = effectiveNeighborhoods.some(
+        (n) => n !== NEAR_ME && n !== FAVORITE_NEIGHBORHOODS
+      );
+      if (areaMap.neighborhoods.length > 0 && !hasExplicitNeighborhoods) {
+        effectiveNeighborhoods = areaMap.neighborhoods;
+      }
+    }
     const textQuery = parsedText;
+    const vibeDb = isExploreListView ? vibeFilterToDb(highlightsFilterState.vibe) : null;
+    const effectiveVibe = vibeDb ?? (filters.vibe !== "all" ? filters.vibe : null);
+    const priceFilter = isExploreListView ? highlightsFilterState.price : null;
 
     return mergedByVenue.filter(({ primary, categories }) => {
       if (textQuery) {
@@ -274,16 +336,32 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
         if (!matches && effectiveNeighborhoods.filter((n) => n !== FAVORITE_NEIGHBORHOODS && n !== NEAR_ME).some((n) => nKey(n) === primaryN)) matches = true;
         if (!matches) return false;
       }
-      if (filters.vibe !== "all") {
+      const vibeToCheck = effectiveVibe ?? filters.vibe;
+      if (vibeToCheck && vibeToCheck !== "all") {
         const tags = Array.isArray(primary.vibe_tags) ? primary.vibe_tags : [];
-        if (!tags.some((t: string) => String(t).toLowerCase() === filters.vibe.toLowerCase())) return false;
+        if (!tags.some((t: string) => String(t).toLowerCase() === vibeToCheck.toLowerCase())) return false;
+      }
+      if (priceFilter) {
+        const price = primary.avg_expected_price ?? null;
+        if (price == null) return false;
+        if (priceFilter === "$" && price >= 15) return false;
+        if (priceFilter === "$$" && (price < 15 || price >= 40)) return false;
+        if (priceFilter === "$$$" && price < 40) return false;
       }
       return true;
     });
-  }, [mergedByVenue, filters, parsedSearch, preferences.preferred_neighborhoods, userLocation]);
+  }, [mergedByVenue, filters, parsedSearch, preferences.preferred_neighborhoods, userLocation, activeTab, exploreView, highlightsFilterState]);
 
   const effectiveCategory = parsedSearch.category !== "all" ? parsedSearch.category : filters.category;
   const effectiveNeighborhoods = parsedSearch.neighborhoods.length > 0 ? parsedSearch.neighborhoods : filters.neighborhoods;
+
+  const showExploreCategoryCards =
+    activeTab === "Explore" &&
+    exploreView === "cards" &&
+    effectiveCategory === "all" &&
+    filters.vibe === "all" &&
+    effectiveNeighborhoods.length === 0 &&
+    !parsedSearch.text;
 
   const appliedFilterCount =
     (searchQuery.trim() ? 1 : 0) +
@@ -352,7 +430,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
         if (!tags.some((t: string) => String(t).toLowerCase() === filters.vibe.toLowerCase())) return false;
       }
       if (filterTags.length > 0) {
-        const placeTags = highlightIds.flatMap((id) => initialTagsByPlaceId[id] ?? []);
+        const placeTags = highlightIds.flatMap((id) => tagsByPlaceId[id] ?? []);
         if (!filterTags.some((t) => placeTags.includes(t))) return false;
       }
       if (ratingMin != null) {
@@ -361,7 +439,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
       }
       return true;
     });
-  }, [yourPlacesMerged, filters, parsedSearch, preferences.preferred_neighborhoods, userLocation, initialTagsByPlaceId, userStateByPlaceId]);
+  }, [yourPlacesMerged, filters, parsedSearch, preferences.preferred_neighborhoods, userLocation, tagsByPlaceId, userStateByPlaceId]);
 
   const getSavedHighlightId = useCallback(
     (highlightIds: string[]) => highlightIds.find((id) => userStateByPlaceId[id]?.isSaved) ?? highlightIds[0],
@@ -371,12 +449,14 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
   const getUserStateForVenue = useCallback(
     (primaryId: string, highlightIds: string[]) => {
       const savedId = getSavedHighlightId(highlightIds);
-      const primaryState = userStateByPlaceId[primaryId];
       const savedState = userStateByPlaceId[savedId];
+      // Rating/visited can be stored on any highlight of the venue; aggregate across all
+      const rating = highlightIds.map((id) => userStateByPlaceId[id]?.rating).find((r) => r != null);
+      const isVisited = highlightIds.some((id) => userStateByPlaceId[id]?.isVisited);
       return {
         isSaved: savedState?.isSaved ?? false,
-        isVisited: primaryState?.isVisited ?? false,
-        rating: primaryState?.rating,
+        isVisited,
+        rating: rating ?? undefined,
       };
     },
     [userStateByPlaceId, getSavedHighlightId]
@@ -435,7 +515,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
   return (
     <div className="space-y-4">
       <div className="sticky top-14 z-40 -mx-4 px-4 pt-2 pb-2 bg-page border-b border-[rgba(148,163,184,0.25)]">
-        <TabNav active={activeTab} onTabChange={setActiveTab} />
+        <TabNav active={activeTab} onTabChange={handleTabChange} />
         {activeTab === "My Places" && user && (
           <div className="flex gap-1 p-1 mt-4 rounded-[14px] bg-transparent border border-[rgba(148,163,184,0.4)]" role="tablist">
             {YOUR_PLACES_SUBTABS.map((tab) => (
@@ -460,6 +540,21 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
           <>
             {/* Search bar + Filters on same row */}
             <div className="flex items-center gap-2 mt-4">
+              {activeTab === "Explore" && !showExploreCategoryCards && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExploreView("cards");
+                    setFilters((prev) => ({ ...prev, category: "all", vibe: "all", neighborhoods: [] }));
+                    setSearchQuery("");
+                    setHighlightsFilterState({ time: null, area: null, price: null, vibe: null });
+                  }}
+                  className="shrink-0 p-2.5 -ml-1 rounded-[14px] bg-surface border border-[rgba(148,163,184,0.35)] shadow-[0_2px_8px_rgba(0,0,0,0.25)] text-muted-foreground hover:text-foreground hover:bg-surface-alt hover:border-[rgba(148,163,184,0.5)] transition-colors touch-manipulation"
+                  aria-label="Back to categories"
+                >
+                  <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+                </button>
+              )}
               <div className="flex-1 min-w-0 flex items-center gap-2 rounded-[14px] bg-surface border border-[rgba(148,163,184,0.35)] pl-3 pr-3 py-2.5 focus-within:border-tab-indicator focus-within:ring-1 focus-within:ring-tab-indicator/30">
                 <Search className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden />
                 <input
@@ -473,8 +568,16 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
               </div>
               <FilterPill onClick={() => setFilterSheetOpen(true)} appliedCount={appliedFilterCount} />
             </div>
-            {/* Filter chips below when selected */}
-            {appliedFilterCount > 0 && (
+            {/* Universal filter chips — horizontal scroll, tap to select/deselect */}
+            {activeTab === "Explore" && !showExploreCategoryCards && (
+              <FilterChipRow
+                filters={highlightsFilterState}
+                onFiltersChange={setHighlightsFilterState}
+                preferredNeighborhoods={preferences.preferred_neighborhoods ?? []}
+              />
+            )}
+            {/* My Places: filter chips when filters applied */}
+            {activeTab === "My Places" && appliedFilterCount > 0 && (
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <span className="inline-block text-[12px] px-2.5 py-1 rounded-[10px] text-[#E5E7EB] bg-chip">
                   {[
@@ -574,7 +677,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
                           setSelectedPlaceSaved(userState.isSaved);
                           setSelectedPlaceVisited(userState.isVisited);
                           setSelectedPlaceRating(userState.rating);
-                          setSelectedUserTags([]);
+                          setSelectedUserTags(tagsByPlaceId[primary.id] ?? []);
                           setSelectedToggleSaveId(userState.isSaved ? savedId : primary.id);
                         }}
                         saved={userState.isSaved}
@@ -608,8 +711,80 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
           )}
         </>
       )}
-      {(activeTab === "Explore" || (activeTab === "My Places" && yourPlacesFiltered.length > 0)) && (
-        <div className="space-y-3">
+      {showExploreCategoryCards && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-display font-semibold text-foreground">
+            What are you in the mood for?
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            {EXPLORE_CATEGORIES.map((cat) => {
+              const Icon = cat.icon;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      category: cat.category,
+                      vibe: "all",
+                    }));
+                    setHighlightsFilterState(getInitialHighlightsFilters(cat));
+                    setExploreView("list");
+                  }}
+                  className={cn(
+                    "group flex flex-col p-4 sm:p-5 rounded-2xl text-left",
+                    "bg-surface border border-[rgba(148,163,184,0.25)]",
+                    "hover:bg-surface-alt hover:border-[rgba(148,163,184,0.4)]",
+                    "active:scale-[0.98] transition-all duration-150 touch-manipulation"
+                  )}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-accent-cyan/15 flex items-center justify-center mb-3 group-hover:bg-accent-cyan/25 transition-colors">
+                    <Icon className="w-5 h-5 text-accent-cyan" strokeWidth={1.5} />
+                  </div>
+                  <span className="text-[15px] font-display font-semibold text-foreground">
+                    {cat.title}
+                  </span>
+                  <span className="text-[13px] text-muted-foreground mt-0.5">
+                    {cat.subtitle}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFilters({ category: "all", neighborhoods: [], vibe: "all", tags: [], ratingMin: undefined });
+              setSearchQuery("");
+              setHighlightsFilterState({ time: null, area: null, price: null, vibe: null });
+              setExploreView("list");
+            }}
+            className={cn(
+              "w-full flex flex-col p-4 sm:p-5 rounded-2xl text-left",
+              "bg-surface border border-[rgba(148,163,184,0.25)]",
+              "hover:bg-surface-alt hover:border-[rgba(148,163,184,0.4)]",
+              "active:scale-[0.98] transition-all duration-150 touch-manipulation"
+            )}
+          >
+            <span className="text-[15px] font-display font-semibold text-foreground">
+              See all places
+            </span>
+            <span className="text-[13px] text-muted-foreground mt-0.5">
+              Browse the full collection
+            </span>
+          </button>
+        </div>
+      )}
+      {((activeTab === "Explore" && !showExploreCategoryCards) || (activeTab === "My Places" && yourPlacesFiltered.length > 0)) && (
+        <div className="space-y-4">
+          {activeTab === "Explore" && !showExploreCategoryCards && (
+            <CategoryHeader
+              category={EXPLORE_CATEGORIES.find((c) => c.category === effectiveCategory) ?? null}
+              cityName={preferences.home_city ?? "Buenos Aires"}
+            />
+          )}
+          <div className="space-y-3">
           {displayList.map(({ primary, categories, highlightIds }) => {
             const savedId = getSavedHighlightId(highlightIds);
             const userState = getUserStateForVenue(primary.id, highlightIds);
@@ -624,7 +799,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
                   setSelectedPlaceSaved(userState.isSaved);
                   setSelectedPlaceVisited(userState.isVisited);
                   setSelectedPlaceRating(userState.rating);
-                  setSelectedUserTags([]);
+                  setSelectedUserTags(tagsByPlaceId[primary.id] ?? []);
                   setSelectedToggleSaveId(userState.isSaved ? savedId : primary.id);
                 }}
                 saved={userState.isSaved}
@@ -642,6 +817,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
               />
             );
           })}
+          </div>
         </div>
       )}
       <FilterSheet
@@ -702,7 +878,10 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
         }
         onTagsChange={
           selectedHighlightId
-            ? (tags) => setSelectedUserTags(tags)
+            ? (tags) => {
+                setSelectedUserTags(tags);
+                setTagsByPlaceId((prev) => ({ ...prev, [selectedHighlightId]: tags }));
+              }
             : undefined
         }
         onReject={(() => {
@@ -718,7 +897,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
         })()}
         isAuthenticated={!!user}
       />
-      {activeTab === "Explore" && filtered.length === 0 && (
+      {activeTab === "Explore" && !showExploreCategoryCards && filtered.length === 0 && (
         <p className="text-center text-muted-foreground py-4 text-sm">No places match the selected filters.</p>
       )}
     </div>

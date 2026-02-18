@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+export const dynamic = "force-dynamic"; // Always fetch fresh highlights (AI enrichment, etc.)
 import { UserCircle } from "lucide-react";
 import { redirect } from "next/navigation";
 import { HighlightsFeed } from "@/components/highlights-feed";
@@ -6,7 +8,18 @@ import { createClient } from "@/lib/supabase/server";
 import { getDefaultCityNameFromDb } from "@/lib/cities-db";
 import { dedupeAndNormalize } from "@/lib/neighborhoods";
 
-export default async function Home() {
+interface HomePageProps {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined };
+}
+
+export default async function Home({ searchParams }: HomePageProps) {
+  const rawParams = typeof searchParams?.then === "function"
+    ? await searchParams
+    : (searchParams ?? {});
+  const params = rawParams as Record<string, string | string[] | undefined>;
+  const category = typeof params?.category === "string" ? params.category : undefined;
+  const vibe = typeof params?.vibe === "string" ? params.vibe : undefined;
+  const tab = typeof params?.tab === "string" ? params.tab : undefined;
   const supabase = createClient();
   const authRes = await supabase.auth.getUser();
   const user = authRes.data?.user ?? null;
@@ -29,7 +42,7 @@ export default async function Home() {
   const [highlightsRes, userPlaceState, userPlaceTags, preferences, cityRow] = await Promise.all([
     supabase
       .from("highlights")
-      .select("*, venue:venues(*)")
+      .select("id, title, short_description, vibe_tags, concierge_rationale, category, neighborhood, avg_expected_price, venue_id, city, status, url, venue:venues(*)")
       .eq("status", "active")
       .eq("city", activeCity)
       .order("title"),
@@ -136,6 +149,9 @@ export default async function Home() {
           user={user}
           preferences={preferences}
           neighborhoods={neighborhoods}
+          initialCategory={category}
+          initialVibe={vibe}
+          initialTab={tab}
         />
       </div>
       <footer className="max-w-lg mx-auto px-4 py-3 text-center">

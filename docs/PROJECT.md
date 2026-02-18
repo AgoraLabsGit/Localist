@@ -1,8 +1,8 @@
 # Localist — Project Overview
 
-*AI-assisted social life planner for Buenos Aires, scaling to other cities.*
+Localist is an AI-assisted social life planner that tells you what to do this week — without you having to search. Starting in Buenos Aires and scaling to other cities, it's a PWA that curates the best places to eat, drink, explore, and go out based on who you are and how you live.
 
-**Core idea:** Tell me what to do this week without me having to search.
+**Who it's for:** Locals who want to break routines and discover hidden gems; digital nomads who need work-friendly cafes by day and social spots by night; tourists who want a mix of must-sees and authentic local experiences.
 
 ---
 
@@ -15,7 +15,7 @@
 
 ---
 
-## Architecture (DB-First / Hybrid)
+## Architecture
 
 | Layer | Source | When |
 |-------|--------|------|
@@ -23,7 +23,9 @@
 | Place detail (address, hours, rating) | Foursquare (in DB) | At ingest |
 | Discovery | Google Text Search | Batch ingestion only |
 
-**We store:** `place_id`, name, city, neighborhood, category, Foursquare data. **We do not store:** Google ratings/address/hours. Google = discovery gate only; Foursquare = durable source.
+**DB-first:** Google = discovery gate only; Foursquare = durable source. We store `place_id`, name, city, neighborhood, category, Foursquare data. No per-request API or AI calls for feeds or place detail.
+
+**Mobile:** PWA-first (manifest, service worker); Capacitor wrap when ready. See [MOBILE-CONVERSION-AUDIT](MOBILE-CONVERSION-AUDIT.md).
 
 ---
 
@@ -38,16 +40,8 @@
 
 ---
 
-## Data Flow
+## Next steps
 
-1. **Ingest** — Google Text Search → filter → Foursquare match + details → upsert `venues` + `highlights`
-2. **Feed** — 100% Supabase. No API calls for browse/filter.
-3. **Detail view** — Reads from DB. Foursquare attribution when showing their data.
-
----
-
-## Mobile Strategy
-
-- **PWA-first** — Add `manifest.json`, service worker.
-- **Capacitor** — When ready, wrap Next.js in native shell.
-- Keep data/business logic in server actions; types in `src/types/`; mobile-first layouts.
+- **Execution order & phases:** [ROADMAP](ROADMAP.md)
+- **Ingestion & pipeline:** [DATA-PIPELINE](DATA-PIPELINE.md)
+- **PWA & Capacitor readiness:** [MOBILE-CONVERSION-AUDIT](MOBILE-CONVERSION-AUDIT.md)

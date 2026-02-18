@@ -13,6 +13,9 @@
 # production
 /build
 
+# discovery test outputs (optional: remove to version results)
+/scripts/test-results/
+
 # misc
 .DS_Store
 *.pem

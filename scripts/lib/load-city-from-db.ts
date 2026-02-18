@@ -26,6 +26,9 @@ export interface CityConfigFromDb {
     textQueryKeywords?: string | null;
     minRatingGate?: number | null;
     minReviewsGate?: number | null;
+    /** Per-tile caps and sparse-tile relaxation (migration 036) */
+    perTileMax?: number | null;
+    minResultsPerTile?: number | null;
   }[];
   neighborhoodQueries: { query: string; category: string; neighborhood: string }[];
   geocodeLanguage: string;
@@ -41,6 +44,8 @@ export interface CityConfigFromDb {
   gridCols?: number | null;
   minRatingGate?: number | null;
   minReviewsGate?: number | null;
+  /** Population for deriving caps/gates (migration 036) */
+  population?: number | null;
   /** Address aliases: names to treat as city-level, not neighborhood (e.g. ["CABA"]) */
   addressAliases?: string[];
   /** GeoJSON source for neighborhood sync (optional) */
@@ -54,7 +59,7 @@ export async function loadCityFromDb(
 ): Promise<CityConfigFromDb | null> {
   const { data: city, error: cityErr } = await supabase
     .from("cities")
-    .select("id, slug, name, center_lat, center_lng, radius_meters, geocode_language, target_venues, max_total_per_city, grid_rows, grid_cols, min_rating_gate, min_reviews_gate, address_aliases, geojson_source_url, geojson_name_property")
+    .select("id, slug, name, center_lat, center_lng, radius_meters, geocode_language, target_venues, max_total_per_city, grid_rows, grid_cols, min_rating_gate, min_reviews_gate, address_aliases, geojson_source_url, geojson_name_property, population")
     .eq("slug", slug)
     .eq("status", "active")
     .single();
@@ -65,7 +70,7 @@ export async function loadCityFromDb(
     supabase.from("city_neighborhoods").select("name").eq("city_id", city.id).order("name"),
     supabase
       .from("city_categories")
-      .select("id, slug, search_query, min_rating, target_count, max_count, min_reviews_main, min_reviews_gem, google_included_type, text_query_keywords, min_rating_gate, min_reviews_gate")
+      .select("id, slug, search_query, min_rating, target_count, max_count, min_reviews_main, min_reviews_gem, google_included_type, text_query_keywords, min_rating_gate, min_reviews_gate, per_tile_max, min_results_per_tile")
       .eq("city_id", city.id)
       .order("slug"),
     supabase
@@ -89,6 +94,8 @@ export async function loadCityFromDb(
     text_query_keywords?: string | null;
     min_rating_gate?: number | null;
     min_reviews_gate?: number | null;
+    per_tile_max?: number | null;
+    min_results_per_tile?: number | null;
   }) => {
     categoryIdBySlug[c.slug] = c.id;
     return {
@@ -104,6 +111,8 @@ export async function loadCityFromDb(
       textQueryKeywords: c.text_query_keywords ?? undefined,
       minRatingGate: c.min_rating_gate ?? undefined,
       minReviewsGate: c.min_reviews_gate ?? undefined,
+      perTileMax: c.per_tile_max ?? undefined,
+      minResultsPerTile: c.min_results_per_tile ?? undefined,
     };
   });
 
@@ -133,6 +142,7 @@ export async function loadCityFromDb(
     gridCols: city.grid_cols ?? undefined,
     minRatingGate: city.min_rating_gate ?? undefined,
     minReviewsGate: city.min_reviews_gate ?? undefined,
+    population: city.population ?? undefined,
     addressAliases: Array.isArray(city.address_aliases)
       ? (city.address_aliases as string[]).filter((s): s is string => typeof s === "string")
       : [],

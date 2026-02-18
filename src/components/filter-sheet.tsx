@@ -11,19 +11,19 @@ import { toTitleCase } from "@/lib/neighborhoods";
 
 export const NEIGHBORHOODS = [
   "all", "Palermo", "Recoleta", "San Telmo", "La Boca", "Belgrano",
-  "Villa Crespo", "Puerto Madero", "Microcentro", "Colegiales", "Nuñez",
+  "Villa Crespo", "Villa Urquiza", "Puerto Madero", "Microcentro", "Colegiales", "Nuñez",
   "Caballito", "Almagro", "Retiro", "Monserrat", "San Nicolás", "Balvanera",
   "Boedo", "Barracas", "Constitución", "Flores",
 ] as const;
-export const VIBES = ["all", "solo_friendly", "group_friendly", "date_night", "lively", "touristy", "local", "hidden_gem", "local_favorite"] as const;
+export const VIBES = ["all", "solo_friendly", "group_friendly", "date_night", "cozy", "lively"] as const;
 
 export const TYPE_GROUPS: { id: string; label: string; types: string[] }[] = [
-  { id: "restaurants", label: "Restaurants", types: ["parrilla", "heladeria", "brunch", "cajun", "po_boy", "restaurant"] },
-  { id: "bars", label: "Bars", types: ["cocktail_bar", "rooftop", "tango_bar", "wine_bar", "jazz_bar", "music_venue", "night_club"] },
+  { id: "restaurants", label: "Restaurants", types: ["parrilla", "heladeria", "pizzeria", "empanadas", "panaderia", "brunch", "cajun", "po_boy", "restaurant"] },
+  { id: "bars", label: "Bars", types: ["cocktail_bar", "rooftop", "tango_bar", "wine_bar", "cerveceria", "dive_bar", "jazz_bar", "music_venue", "night_club"] },
   { id: "cafes", label: "Cafés", types: ["cafe"] },
   { id: "museums", label: "Museums", types: ["museum"] },
   { id: "outdoors", label: "Outdoors", types: ["park", "waterfront"] },
-  { id: "culture", label: "Culture", types: ["theater", "historical_place", "bookstore"] },
+  { id: "culture", label: "Culture", types: ["theater", "historical_place", "bookstore", "art_gallery"] },
   { id: "other", label: "Other", types: ["kids_activities", "tours"] },
 ];
 

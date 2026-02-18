@@ -5,7 +5,7 @@ import { SignOutButton } from "./sign-out-button";
 import { LocationSection } from "./location-section";
 import { FavoriteNeighborhoodsSection } from "./favorite-neighborhoods-section";
 import { SettingsPreferencesBlock } from "./settings-preferences-block";
-import { PersonaSection, WeekdayPreferencesSection, WeekendPreferencesSection, VibeTagsSection, BudgetSection } from "./concierge-preferences-sections";
+import { PersonaSection, WeekdayPreferencesSection, WeekendPreferencesSection, VibeTagsSection, BudgetSection, WhenAndHowOftenSection, TouristVsLocalSection, ConstraintsSection } from "./concierge-preferences-sections";
 import { isAdmin } from "@/lib/admin";
 
 export default async function SettingsPage() {
@@ -45,6 +45,9 @@ export default async function SettingsPage() {
           <PersonaSection />
         </div>
         <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
+          <WhenAndHowOftenSection />
+        </div>
+        <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
           <WeekdayPreferencesSection />
         </div>
         <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
@@ -55,6 +58,12 @@ export default async function SettingsPage() {
         </div>
         <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
           <BudgetSection />
+        </div>
+        <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
+          <TouristVsLocalSection />
+        </div>
+        <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
+          <ConstraintsSection />
         </div>
         {isAdminUser && (
           <Link

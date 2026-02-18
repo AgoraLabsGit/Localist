@@ -1,5 +1,7 @@
 # Costs
 
+**Cost tracking:** Record API dashboard costs and match to runs via [COST-LOG](COST-LOG.md). Scripts print API call counts at the end of each run.
+
 ---
 
 ## Revenue (per paid user)
@@ -26,8 +28,9 @@ $5/mo gross → ~$4.55 net (Stripe).
 
 ### AI (Phase 2)
 
-- GPT-4o-mini: ~$0.0001/place
-- Claude Haiku: ~$0.0008/place
+- **GPT-4o-mini** (enrich-venues-ai, tip-rich places): ~$0.0001/place; ~$0.15/1M input, ~$0.60/1M output tokens
+- **Claude Haiku**: ~$0.0008/place
+- **Perplexity Sonar** (enrich-venues-ai-web, no-tip places): ~$1/1M tokens + search fees (~$0.005/search). Web-sourced enrichment for venues without FSQ tips.
 
 ---
 

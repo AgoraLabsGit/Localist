@@ -43,6 +43,11 @@ const BUENOS_AIRES_SPECIFIC: CityCategory[] = [
   { query: "best parrilla Buenos Aires", category: "parrilla", isCitySpecific: true },
   { query: "best milonga tango Buenos Aires", category: "tango_bar", isCitySpecific: true },
   { query: "best ice cream Buenos Aires", category: "heladeria", isCitySpecific: true },
+  { query: "best pizza Buenos Aires", category: "pizzeria", isCitySpecific: true },
+  { query: "best empanadas Buenos Aires", category: "empanadas", isCitySpecific: true },
+  { query: "best bakery Buenos Aires", category: "panaderia", isCitySpecific: true },
+  { query: "best craft beer Buenos Aires", category: "cerveceria", isCitySpecific: true },
+  { query: "best dive bar Buenos Aires", category: "dive_bar", isCitySpecific: true },
 ];
 
 export const buenosAires: CityConfig = {
@@ -53,6 +58,7 @@ export const buenosAires: CityConfig = {
   neighborhoods: [
     "Palermo", "Recoleta", "San Telmo", "La Boca", "Belgrano",
     "Colegiales", "Nuñez", "Caballito", "Almagro", "Villa Crespo",
+    "Villa Urquiza", "Coghlan", "Villa Ortuzar", "Saavedra",
     "Retiro", "Puerto Madero", "Monserrat", "San Nicolás", "Balvanera",
     "Boedo", "Barracas", "Constitución", "Flores", "Microcentro",
   ],
@@ -77,6 +83,12 @@ export const buenosAires: CityConfig = {
     { query: "best parrilla Villa Crespo", category: "parrilla", neighborhood: "Villa Crespo" },
     { query: "best cafe Belgrano", category: "cafe", neighborhood: "Belgrano" },
     { query: "best parrilla Belgrano", category: "parrilla", neighborhood: "Belgrano" },
+    { query: "best cafe Villa Urquiza", category: "cafe", neighborhood: "Villa Urquiza" },
+    { query: "best parrilla Villa Urquiza", category: "parrilla", neighborhood: "Villa Urquiza" },
+    { query: "best cafe Nuñez", category: "cafe", neighborhood: "Nuñez" },
+    { query: "best parrilla Nuñez", category: "parrilla", neighborhood: "Nuñez" },
+    { query: "best cafe Coghlan", category: "cafe", neighborhood: "Coghlan" },
+    { query: "best cafe Villa Ortuzar", category: "cafe", neighborhood: "Villa Ortuzar" },
   ],
   geocodeLanguage: "es",
   targetVenues: 250, // Large city (GBA ~15M)

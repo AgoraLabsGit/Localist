@@ -1,12 +1,10 @@
 # Data Quality & Performance
 
-Addresses duplicate neighborhoods, duplicate venues, place detail page load time, and sparse coverage in neighborhoods like Villa Urquiza.
-
-**AI pipeline:** See `docs/AI-PIPELINE.md` for enrichment, static summaries, and Phase 2 (guided tours, blog links).
+Duplicate neighborhoods, duplicate venues, place detail load time, and sparse coverage. **AI pipeline:** [AI-PIPELINE](AI-PIPELINE.md). **Execution order:** [ROADMAP](ROADMAP.md).
 
 ---
 
-## 1. Duplicate neighborhoods + all CAPS
+## 1. Duplicate neighborhoods + all CAPS — **Implemented**
 
 **Problem:** Area filter shows duplicates (e.g. Liniers vs LINIERS, San Cristóbal vs SAN CRISTOBAL) and many names in all caps.
 
@@ -15,61 +13,21 @@ Addresses duplicate neighborhoods, duplicate venues, place detail page load time
 - Highlights: Ingestion stores neighborhood from Google/FSQ (mixed casing)
 - Merge in page/API combines both without deduplication or display normalization
 
-**Fix:**
-1. **Display layer** — Dedupe by normalized name (lowercase, no diacritics) and apply title case when rendering. Implemented in `src/lib/neighborhoods.ts`; used by home page and `/api/neighborhoods`. Highlight cards also use `toTitleCase` for neighborhood display.
-2. **Source layer** — Sync script inserts with title case. One-time cleanup: `npm run normalize:neighborhoods buenos-aires`.
-
-**Still seeing duplicates or all caps?**
-- **DB push is not required** — normalization runs at request time; the normalize script updates data directly (no migrations).
-- Ensure you ran: `npm run normalize:neighborhoods buenos-aires` against the same Supabase project your app uses (`.env.local`).
-- Restart the dev server (`npm run dev`) or redeploy so the latest code is loaded. If deployed: `vercel --prod` or push to main.
-- **Cached build:** Try `rm -rf .next && npm run dev` to clear Next.js cache.
-3. **Ingestion** — Optionally normalise neighborhood before upsert so FSQ/Google variants (e.g. "LINIERS") become canonical (e.g. "Liniers") via PostGIS `lookup_neighborhood` or a mapping table.
+**Implemented:** Display dedupe + title case in `src/lib/neighborhoods.ts`; one-time cleanup `npm run normalize:neighborhoods buenos-aires`.
 
 ---
 
-## 2. Duplicate places (El Ateneo / El Ateneo Grand Splendid)
+## 2. Duplicate places (El Ateneo / El Ateneo Grand Splendid) — **Revised**
 
 **Problem:** Different Google place_ids for what might be the same or related venues (chain vs branch).
 
 **Root cause:** Google Places treats each listing as a separate establishment—each has a unique `place_id`. Our upsert key is `google_place_id`, so we store both. **Google ID cannot filter duplicates**—it's the source of them.
 
-**Proposed solution: canonical dedup key**
-
-Use **address + name** as the canonical identity, not `place_id`:
-
-| Signal | Reliability | Use case |
-|--------|-------------|----------|
-| **Address** | High | Same physical place. Normalize (lowercase, trim, collapse spaces, strip city suffix). Two venues with same normalized address = merge. |
-| **Coordinates** | Medium | Same lat/lng rounded to ~5 decimals (~1 m) = same place. Use when address missing. |
-| **Name + distance** | Medium | Similar name (one contains other, or Levenshtein small) + &lt;100 m = probable duplicate. Risk: different branches. |
-| **Google place_id** | N/A | Unique per listing; cannot dedupe. |
-| **Foursquare ID** | N/A | Different IDs for different FSQ listings (chain vs branch). |
-
-**Canonical key formula (at ingest, before upsert):**
-
-1. **When address exists:** `canonical_key = hash(normalize_address(addr))`  
-   - Same address = same place, regardless of Google listing variants.
-2. **When address missing:** `canonical_key = hash(normalize_name(name) + geohash(lat,lng,7))`  
-   - Geohash precision 7 ≈ 150 m. Same name + same ~150 m area = likely same place.
-3. **Fallback:** No address, no coords → `place_id` (no dedup).
-
-**Behavior:**
-- Before upsert, compute `canonical_key` for the candidate venue.
-- Look up existing venue with same `canonical_key` in same city.
-- **If found:** Add highlight to existing venue (or merge), do *not* create new venue row. Optionally store `google_place_id` in a `venue_google_ids[]` array for "Open in Maps" links.
-- **If not found:** Insert new venue as today.
-
-**Schema (optional):** Add `venues.canonical_key TEXT` + unique index `(city_id, canonical_key)` to enforce one venue per physical place. Or compute on the fly without persisting.
-
-**Edge cases:**
-- **El Ateneo vs El Ateneo Grand Splendid:** Different addresses (Recoleta vs other) → different keys → keep both. Correct.
-- **Two Google listings for same address:** Same address → same key → merge. Correct.
-- **Chain branches (same name, different locations):** Different addresses/geohash → different keys → keep both. Correct.
+**Previously:** Canonical key (address or name+geohash) was used to merge venues. **Regression (migration 041):** Merging by canonical_key caused distinct businesses at the same address to overwrite each other—e.g. two Villa Urquiza cafés merged into one, losing the first. **Fix:** Stop merging by canonical_key. Each `google_place_id` = one venue. canonical_key kept for analytics only.
 
 ---
 
-## 3. Place detail page load time
+## 3. Place detail page load time — **Open**
 
 **Problem:** Detail modal feels slow to load.
 
@@ -104,44 +62,64 @@ Use **address + name** as the canonical identity, not `place_id`:
 
 ---
 
-## 4. Sparse coverage in Villa Urquiza
+## 4. Sparse coverage in outer neighborhoods — **Implemented**
 
-**Problem:** Only 1 establishment (Sin Rumbo) for Villa Urquiza; Google Maps shows many more.
+**Problem:** Outer neighborhoods (e.g. Villa Urquiza in north BA) got few or no venues despite Google Maps having many. With row-major tile order (row 0 south → row 4 north), early tiles exhausted the category budget before northern tiles were processed.
 
-**Current state:**
-- Grid: 3×3, center -34.60, -58.38, radius 15km
-- Villa Urquiza ~ -34.57, -58.50 — within tile 3 (W center)
-- One venue, one highlight
+**Root cause:** No per-tile reservation. With `maxCount ~283`, `perTileMax ~28`, and 25 tiles, the first ~10 tiles (south/center) used the full budget. Villa Urquiza (row 4) was never reached.
 
-**Parameters to change (architecture):**
+**Implemented fixes:**
 
-| Parameter | Table | Current (BA) | Effect on sparse neighborhoods |
-|-----------|-------|-------------|--------------------------------|
-| `grid_rows`, `grid_cols` | `cities` | 3×3 | **Denser grid** = tile centers closer to outer barrios; each subregion gets its own 20 results. 5×5 puts a tile ~centered on Villa Urquiza. |
-| `maxResultCount` | Hardcoded (20) | 20 | Higher = more per request; doesn't help distribution. |
-| `nextPageToken` | Not implemented | — | **Pagination** = get page 2, 3… for tiles that return a full page. Surfaces less prominent places. |
-| `min_rating_gate`, `min_reviews_gate` | `cities` / `city_categories` | 4.3, 5 | Relax slightly for sparse barrios (future: per-neighborhood gates). |
-| `max_count` per category | `city_categories` | Varies | If low, we stop before reaching outer tiles. |
+| Fix | Where | Effect |
+|-----|-------|--------|
+| **Fair per-tile allocation** | `ingest-places-typed.ts` `searchGooglePlacesTyped` | `minPerTile = floor(maxCount/tiles)`. For each tile, cap at `min(perTileMax, maxCount - totalUsed - tilesLeft × minPerTile)` so every tile gets a minimum share. |
+| **Grid 5×5** | migration 027 | Tile centers cover north (Villa Urquiza, Belgrano) and outer barrios. |
+| **Multi-query, pagination, outer radius** | ingest script | cafe: type=cafe + type=restaurant "café"; 6–8 pages; 1.3× radius outer tiles; min_results_per_tile relaxation. |
 
-**Pagination vs grid — which first?**
+**§5. Canonical key merge regression — Fixed (migration 041)**  
+Merging venues by canonical_key (address hash) overwrote distinct businesses at the same address. E.g. 2 Villa Urquiza cafés → 1. Disabled merge; each place_id now gets its own venue.
 
-| Approach | What it does | Impact on sparse areas | Effort |
-|----------|--------------|------------------------|--------|
-| **Grid** | More, smaller tiles. 5×5 = 25 tiles vs 9. | Puts tile centers *inside* Villa Urquiza. Location bias returns local places first instead of Palermo/Recoleta. | Low: change `grid_rows`, `grid_cols` in DB. No code change. |
-| **Pagination** | Follow `nextPageToken` when Google returns 20. | For tiles that fill 20 results, page 2+ may include less prominent places from that area. | Medium: loop on `nextPageToken` in `searchGooglePlacesTyped`. |
+**§6. Missing neighborhood queries (root cause of outer-barrio undercoverage):** ingest-places-typed did NOT run neighborhood-specific queries ("best cafe Villa Urquiza"). It only ran city-wide tile search—Google returns top city-wide results per tile, so local Villa Urquiza cafés ranked low. The legacy ingest had neighborhood queries; typed did not. **Fix:** Added neighborhood query phase to ingest-places-typed; added Villa Urquiza, Nuñez, Coghlan, Villa Ortuzar to config. Run `seed-cities` to persist.
 
-**Recommendation: grid first, then pagination**
+**§7. Chicama edge case — investigated (2026-02):**
 
-1. **Grid first** — Increase BA to 5×5 (or 4×4). Cheapest, lowest risk. Tile radius drops from ~5 km to ~3 km. Villa Urquiza gets a tile whose center is nearer, so top-20 results are more likely to come from that barrio.
-2. **Pagination second** — Add `nextPageToken` for tiles that return 20. Helps when a tile has many good results; page 2+ catches places that didn’t make the first 20.
+Chicama (Villa Urquiza anchor) was missing from cafe ingest. Investigation:
 
-**Order of operations:** (1) Implement venue deduplication (§2). (2) Update `cities.grid_rows=5`, `grid_cols=5` for BA. (3) Run ingest → measure Villa Urquiza count. (4) Add `nextPageToken` pagination if still sparse.
+| Question | Finding |
+|----------|---------|
+| Does Google see Chicama? | Yes. Two locations: **Chicama** (Echeverría 4322, 4.0★/240), **Chicama Andonaegui** (Andonaegui 2052, 4.0★/960). Café/restaurant. |
+| Does discovery surface it? | **Yes.** `neighborhood` ("café Villa Urquiza") and `chicama-only` ("Chicama Villa Urquiza") both return it. `minimal` does not. |
+| Why does ingest drop it? | **Rating gate.** Main gate = 4.1+/6+. Chicama = 4.0★. Discovered then filtered before save. |
 
----
+**Remediation options:**
+- **Anchor list:** Maintain `must_have_place_ids` per city; seed/keep venues even if they fail the gate. Chicama (e.g. `ChIJjcTocUq3vJURQu5v4X9vLQ8`) would be included.
+- **Lower gate for cafes:** Would include Chicama but could add lower-quality venues. Not recommended.
+- **Manual seed:** One-off insert for Chicama. Simple but does not scale.
 
-## Implementation priority
+**Harness:** `npm run test:google-discovery buenos-aires 24 -- --chicama-debug` runs minimal+neighborhood only and reports whether Chicama appears (acceptance test).
 
-1. **Neighborhood normalization** — Done: dedupe + title case
-2. **Venue deduplication** — Done: canonical key at ingest (migration 027, `ingest-places-typed`).
-3. **Villa Urquiza / sparse coverage** — Grid 5×5 for BA done; add `nextPageToken` pagination if still sparse.
-4. **Place detail** — Static data + AI pipeline (see Roadmap)
+**§8. General discovery gaps:** Even with neighborhood queries, venues can be missed due to (1) query relevance; (2) pagination limits; (3) rating gates. Mitigations: café de especialidad pattern; 8/10 pages for cafe/brunch; neighborhood queries for outer barrios.
+
+**§9. Google discovery tests:** Focus: cafes, BA, problem tile (4-4) vs control (2-2). See `scripts/config/google-discovery-profiles.ts` for locked strategies and anchors.
+
+```bash
+# Full experiment on both tiles
+npm run test:google-discovery buenos-aires -- --both-tiles --json
+
+# Single strategy on problem tile
+npm run test:google-discovery buenos-aires 24 -- --strategy=minimal --json
+
+# Chicama acceptance test (minimal+neighborhood, reports if Chicama appears)
+npm run test:google-discovery buenos-aires 24 -- --chicama-debug
+```
+
+Output: raw_count, main_gate_count, relaxed_gate_count, anchors_present, api_calls. JSON written to `scripts/test-results/discovery-{timestamp}.json`. Success criteria: ≥6–8 cafes passing main gate in problem tile, including anchors (Crisol Villa Urquiza, Chicama, etc.). Converge on one strategy for cafes before changing ingest.
+
+**Verification checklist (post-ingest):**
+
+1. `npm run ingest:places:typed -- buenos-aires --force --incremental`
+2. `npx tsx scripts/fetch-venue-photos.ts`
+3. `npm run fetch:venue-tips buenos-aires`
+4. `npm run compute:scores buenos-aires`
+5. Confirm coverage: `SELECT COUNT(*) FROM highlights h JOIN venues v ON h.venue_id = v.id WHERE v.neighborhood ILIKE '%Villa Urquiza%' AND h.category = 'cafe'` — expect ≥10.
+6. `npm run enrich:venues:ai buenos-aires` — Phase 2, after coverage confirmed

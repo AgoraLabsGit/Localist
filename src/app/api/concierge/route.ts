@@ -54,7 +54,7 @@ export async function GET(req: Request) {
       .then((r) =>
         supabase
           .from("highlights")
-          .select("*, venue:venues(*)")
+          .select("id, title, short_description, vibe_tags, concierge_rationale, category, neighborhood, avg_expected_price, venue_id, city, status, url, venue:venues(*)")
           .eq("status", "active")
           .eq("city", (r.data?.home_city as string) ?? defaultCity)
           .order("title")

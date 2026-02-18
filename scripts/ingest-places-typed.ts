@@ -12,6 +12,9 @@
  *   npx tsx scripts/ingest-places-typed.ts [city-slug]
  *   npx tsx scripts/ingest-places-typed.ts --list
  *
+ * Production (live cities): use --force --incremental to ensure discovery runs and FSQ costs stay low:
+ *   npm run ingest:places:typed -- <city-slug> --force --incremental
+ *
  * See docs/DATA-PIPELINE.md for full spec.
  */
 
@@ -23,6 +26,13 @@ import { createClient } from "@supabase/supabase-js";
 import { getCityConfig, listCitySlugs, type CityConfig } from "./config/cities";
 import { loadCityFromDb, listCitySlugsFromDb, getDefaultCitySlug, type CityConfigFromDb } from "./lib/load-city-from-db";
 import { loadPipelineSettings, resolveMaxFoursquareCalls } from "../src/lib/admin-settings";
+import {
+  deriveVenueCaps,
+  deriveBaseGatesForCity,
+  adjustGatesForThinCategory,
+  isThinCategory,
+} from "../src/lib/venue-caps";
+import { GOOGLE_DISCOVERY_PROFILES } from "./config/google-discovery-profiles";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY!;
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY!;
@@ -56,6 +66,14 @@ interface GooglePlace {
   types?: string[];
 }
 
+/** Single tip for fsq_tips JSONB storage */
+export interface FoursquareTip {
+  text: string;
+  created_at?: string;
+  lang?: string;
+  likes?: number;
+}
+
 interface FoursquareData {
   foursquare_id: string;
   address: string | null;
@@ -70,9 +88,11 @@ interface FoursquareData {
   description: string | null;
   /** Raw FSQ categories; persisted to venues.fsq_categories */
   categories?: Array<{ id?: string; name?: string; primary?: boolean }>;
+  /** Top tips; input for AI enrichment only; not exposed as raw corpus */
+  tips?: FoursquareTip[];
 }
 
-/** Extended category from DB (migration 022) */
+/** Extended category from DB (migration 022, 036) */
 interface CategoryWithDiscovery {
   query: string;
   category: string;
@@ -83,9 +103,11 @@ interface CategoryWithDiscovery {
   textQueryKeywords?: string | null;
   minRatingGate?: number | null;
   minReviewsGate?: number | null;
+  perTileMax?: number | null;
+  minResultsPerTile?: number | null;
 }
 
-/** Extended city from DB (migration 021) */
+/** Extended city from DB (migration 021, 036) */
 interface CityWithTiling {
   center: { lat: number; lng: number };
   radiusMeters: number;
@@ -97,6 +119,7 @@ interface CityWithTiling {
   gridCols?: number | null;
   minRatingGate?: number | null;
   minReviewsGate?: number | null;
+  population?: number | null;
 }
 
 function mapPlaceToGooglePlace(p: {
@@ -130,8 +153,16 @@ function mapPlaceToGooglePlace(p: {
   };
 }
 
-/** Generate tile centers for grid tiling. Grid spans city diameter (2× radius). */
-function generateTileCenters(city: CityWithTiling): { lat: number; lng: number; radiusMeters: number }[] {
+/** Tile with row/col for tileId. Grid spans city diameter (2× radius). */
+interface TileWithIndex {
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  rowIndex: number;
+  colIndex: number;
+}
+
+function generateTileCenters(city: CityWithTiling): TileWithIndex[] {
   const rows = city.gridRows ?? DEFAULT_GRID_ROWS;
   const cols = city.gridCols ?? DEFAULT_GRID_COLS;
   const tileRadius = Math.ceil(city.radiusMeters / Math.max(rows, cols));
@@ -145,13 +176,15 @@ function generateTileCenters(city: CityWithTiling): { lat: number; lng: number; 
   const startLat = city.center.lat - radiusDegLat;
   const startLng = city.center.lng - radiusDegLng;
 
-  const tiles: { lat: number; lng: number; radiusMeters: number }[] = [];
+  const tiles: TileWithIndex[] = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       tiles.push({
         lat: startLat + r * latStep,
         lng: startLng + c * lngStep,
         radiusMeters: tileRadius,
+        rowIndex: r,
+        colIndex: c,
       });
     }
   }
@@ -173,98 +206,281 @@ function resolveRatingGates(
   category: CategoryWithDiscovery,
   city: CityWithTiling
 ): { minRating: number; minReviews: number } {
+  let base: { minRating: number; minReviews: number };
+  if (category.minRatingGate != null && category.minReviewsGate != null) {
+    base = { minRating: category.minRatingGate, minReviews: category.minReviewsGate };
+  } else if (
+    (city as { minRatingGate?: number }).minRatingGate != null &&
+    (city as { minReviewsGate?: number }).minReviewsGate != null
+  ) {
+    base = {
+      minRating: (city as { minRatingGate: number }).minRatingGate,
+      minReviews: (city as { minReviewsGate: number }).minReviewsGate,
+    };
+  } else {
+    base = deriveBaseGatesForCity((city as { population?: number | null }).population ?? null);
+    if (isThinCategory(category.category)) base = adjustGatesForThinCategory(base);
+  }
+  return base;
+}
+
+/** Multiple query patterns per tile for better coverage without lowering gates. */
+function getDiscoveryPatterns(category: CategoryWithDiscovery): Array<{ includedType?: string; textQuery: string }> {
+  // Cafe: use frozen minimal profile (best main_gate_count in outer tiles per test-google-discovery)
+  if (category.category === "cafe") {
+    return GOOGLE_DISCOVERY_PROFILES.cafe.patterns;
+  }
+
+  const baseQuery = category.textQueryKeywords
+    ? category.textQueryKeywords
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join(" ") || category.query
+    : category.query;
+
+  const patterns: Array<{ includedType?: string; textQuery: string }> = [
+    { includedType: category.googleIncludedType ?? undefined, textQuery: baseQuery },
+  ];
+
+  // Brunch: restaurant + "brunch" already primary; add "café" for crossover spots
+  if (category.category === "brunch") {
+    patterns.push({ includedType: "restaurant", textQuery: "café brunch" });
+  }
+
+  return patterns;
+}
+
+/** Resolve maxCount and perTileMax: DB overrides or derive from city. */
+function resolveCaps(
+  category: CategoryWithDiscovery,
+  city: CityWithTiling
+): { maxCount: number; perTileMax: number; minResultsPerTile: number } {
+  const derived = deriveVenueCaps({
+    population: (city as { population?: number | null }).population ?? null,
+    radiusMeters: city.radiusMeters,
+    gridRows: city.gridRows,
+    gridCols: city.gridCols,
+  });
   return {
-    minRating:
-      category.minRatingGate ??
-      (city as { minRatingGate?: number }).minRatingGate ??
-      DEFAULT_MIN_RATING_GATE,
-    minReviews:
-      category.minReviewsGate ??
-      (city as { minReviewsGate?: number }).minReviewsGate ??
-      DEFAULT_MIN_REVIEWS_GATE,
+    maxCount: category.maxCount ?? derived.maxCount,
+    perTileMax: category.perTileMax ?? derived.perTileMax,
+    minResultsPerTile: category.minResultsPerTile ?? 8,
   };
 }
 
-/** Google Text Search with includedType + tiling. Dedupes by place_id. */
+const FIELD_MASK =
+  "places.id,places.displayName,places.location,places.formattedAddress,places.addressComponents,places.rating,places.userRatingCount,places.types,places.primaryType,nextPageToken";
+
+/** Fetch one query pattern for a tile; walks full pagination (up to maxPages). */
+async function fetchTileWithPattern(
+  pattern: { includedType?: string; textQuery: string },
+  tile: TileWithIndex,
+  rows: number,
+  cols: number,
+  maxPages: number
+): Promise<GooglePlace[]> {
+  const isOuterTile =
+    tile.rowIndex === 0 ||
+    tile.rowIndex === rows - 1 ||
+    tile.colIndex === 0 ||
+    tile.colIndex === cols - 1;
+  const radiusMeters = isOuterTile ? Math.ceil(tile.radiusMeters * 1.3) : tile.radiusMeters;
+
+  const raw: GooglePlace[] = [];
+  let pageToken: string | undefined;
+  let pageCount = 0;
+
+  do {
+    const body: Record<string, unknown> = {
+      textQuery: pattern.textQuery || " ",
+      locationBias: {
+        circle: {
+          center: { latitude: tile.lat, longitude: tile.lng },
+          radius: radiusMeters,
+        },
+      },
+      maxResultCount: 20,
+    };
+    if (pattern.includedType) {
+      body.includedType = pattern.includedType;
+      body.strictTypeFiltering = true;
+    }
+    if (pageToken) body.pageToken = pageToken;
+
+    googleCallsMade++;
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": FIELD_MASK,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+    if (data.error) return raw;
+
+    const pagePlaces = (data.places ?? []).map((p: Record<string, unknown>) =>
+      mapPlaceToGooglePlace(p as Parameters<typeof mapPlaceToGooglePlace>[0])
+    );
+    raw.push(...pagePlaces);
+    pageToken = data.nextPageToken ?? undefined;
+    pageCount++;
+  } while (pageToken && pageCount < maxPages);
+
+  return raw;
+}
+
+/** Result of searchGooglePlacesTyped: places + per-tile counts for logging. */
+interface SearchResult {
+  places: GooglePlace[];
+  tileCounts: Record<string, number>;
+}
+
+/**
+ * Google Text Search: multi-query discovery, per-tile caps, sparse-tile relaxation as last resort.
+ * Order: (1) multiple query patterns + full pagination, (2) apply rating gates, (3) only if still
+ * below min_results_per_tile, relax gates for previously rejected candidates.
+ */
 async function searchGooglePlacesTyped(
   category: CategoryWithDiscovery,
-  city: CityWithTiling,
-  maxCount?: number
-): Promise<GooglePlace[]> {
+  city: CityWithTiling
+): Promise<SearchResult> {
   const { minRating, minReviews } = resolveRatingGates(category, city);
-  const includedType = category.googleIncludedType ?? undefined;
-  const textQuery = category.textQueryKeywords
-    ? category.textQueryKeywords.split(",").map((s) => s.trim()).filter(Boolean).join(" ") || category.query
-    : category.query;
+  const { maxCount, perTileMax, minResultsPerTile } = resolveCaps(category, city);
+  const patterns = getDiscoveryPatterns(category);
 
-  const fieldMask =
-    "places.id,places.displayName,places.location,places.formattedAddress,places.addressComponents,places.rating,places.userRatingCount,places.types,places.primaryType,nextPageToken";
+  const rows = city.gridRows ?? DEFAULT_GRID_ROWS;
+  const cols = city.gridCols ?? DEFAULT_GRID_COLS;
+  // Cafe/brunch: more pages to surface specialty cafés that rank lower in generic queries
+  const isCafeLike = category.category === "cafe" || category.category === "brunch";
+  const maxPagesInner = isCafeLike ? 8 : 6;
+  const maxPagesOuter = isCafeLike ? 10 : 8;
 
   const tiles = generateTileCenters(city);
   const seen = new Set<string>();
   const all: GooglePlace[] = [];
-  const limit = maxCount ?? 999;
+  const tileCounts: Record<string, number> = {};
+  let totalForCategory = 0;
 
-  for (const tile of tiles) {
-    if (all.length >= limit) break;
+  /** Reserve floor(maxCount/tiles) per tile so late tiles (e.g. north) aren't starved. */
+  const minPerTile = Math.floor(maxCount / tiles.length);
 
-    let pageToken: string | undefined;
-    let tilePageCount = 0;
-    const maxPagesPerTile = 3; // Cap pagination per tile to limit API cost
+  for (let i = 0; i < tiles.length; i++) {
+    const tile = tiles[i];
+    const tileId = `${tile.rowIndex}-${tile.colIndex}`;
+    const tilesLeft = tiles.length - i - 1;
+    const reservedForRemaining = tilesLeft * minPerTile;
+    const maxFromThisTile = Math.min(
+      perTileMax,
+      Math.max(0, maxCount - totalForCategory - reservedForRemaining)
+    );
+    if (maxFromThisTile <= 0) continue;
 
-    do {
-      const body: Record<string, unknown> = {
-        textQuery: textQuery || " ",
-        locationBias: {
-          circle: {
-            center: { latitude: tile.lat, longitude: tile.lng },
-            radius: tile.radiusMeters,
-          },
-        },
-        maxResultCount: 20,
-      };
-      if (includedType) {
-        body.includedType = includedType;
-        body.strictTypeFiltering = true;
-      }
-      if (pageToken) body.pageToken = pageToken;
+    const currentTileCount = tileCounts[tileId] ?? 0;
+    if (currentTileCount >= maxFromThisTile) continue;
 
-      const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Goog-Api-Key": GOOGLE_API_KEY,
-          "X-Goog-FieldMask": fieldMask,
-        },
-        body: JSON.stringify(body),
-      });
+    const isOuter =
+      tile.rowIndex === 0 ||
+      tile.rowIndex === rows - 1 ||
+      tile.colIndex === 0 ||
+      tile.colIndex === cols - 1;
+    const maxPages = isOuter ? maxPagesOuter : maxPagesInner;
 
-      const data = await res.json();
-      if (data.error) {
-        console.warn(`   Search failed for "${category.category}":`, data.error.message);
-        break;
-      }
+    const rawByPlaceId = new Map<string, GooglePlace>();
+    for (const pattern of patterns) {
+      const chunk = await fetchTileWithPattern(pattern, tile, rows, cols, maxPages);
+      for (const p of chunk) rawByPlaceId.set(p.place_id, p);
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    const raw = Array.from(rawByPlaceId.values());
 
-      const raw = (data.places ?? []).map((p: Record<string, unknown>) =>
-        mapPlaceToGooglePlace(p as Parameters<typeof mapPlaceToGooglePlace>[0])
+    let tileCandidates: GooglePlace[] = raw.filter(
+      (p) => !seen.has(p.place_id) && passesRatingGate(p, minRating, minReviews)
+    );
+
+    if (tileCandidates.length < minResultsPerTile) {
+      const relaxedRating = Math.max(3.6, minRating - 0.3);
+      const relaxedReviews = Math.max(1, minReviews - 2);
+      const acceptedMainIds = new Set(tileCandidates.map((p) => p.place_id));
+      const acceptedRelaxed = raw.filter(
+        (p) =>
+          !acceptedMainIds.has(p.place_id) &&
+          !seen.has(p.place_id) &&
+          passesRatingGate(p, relaxedRating, relaxedReviews)
       );
+      tileCandidates = [...tileCandidates, ...acceptedRelaxed];
+    }
 
-      for (const p of raw) {
-        if (seen.has(p.place_id)) continue;
-        if (!passesRatingGate(p, minRating, minReviews)) continue;
-        seen.add(p.place_id);
-        all.push(p);
-        if (all.length >= limit) break;
-      }
-
-      pageToken = data.nextPageToken ?? undefined;
-      tilePageCount++;
-    } while (pageToken && tilePageCount < maxPagesPerTile && all.length < limit);
+    for (const p of tileCandidates) {
+      if (totalForCategory >= maxCount) break;
+      if ((tileCounts[tileId] ?? 0) >= maxFromThisTile) break;
+      if (seen.has(p.place_id)) continue;
+      seen.add(p.place_id);
+      all.push(p);
+      tileCounts[tileId] = (tileCounts[tileId] ?? 0) + 1;
+      totalForCategory++;
+    }
 
     await new Promise((r) => setTimeout(r, 200));
   }
 
-  return all;
+  return { places: all, tileCounts };
+}
+
+/** Neighborhood-specific query: "best cafe Villa Urquiza" surfaces local results city-wide tiles miss. */
+async function searchGooglePlacesNeighborhood(
+  query: string,
+  category: CategoryWithDiscovery,
+  city: CityWithTiling,
+  seenPlaceIds: Set<string>,
+  maxCount: number
+): Promise<GooglePlace[]> {
+  const { minRating, minReviews } = resolveRatingGates(category, city);
+  const raw: GooglePlace[] = [];
+  let pageToken: string | undefined;
+  const maxPages = 5;
+
+  for (let page = 0; page < maxPages; page++) {
+    const body: Record<string, unknown> = {
+      textQuery: query || " ",
+      locationBias: {
+        circle: {
+          center: { latitude: city.center.lat, longitude: city.center.lng },
+          radius: city.radiusMeters,
+        },
+      },
+      maxResultCount: 20,
+    };
+    if (pageToken) body.pageToken = pageToken;
+
+    googleCallsMade++;
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": FIELD_MASK,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) break;
+    const pagePlaces = (data.places ?? []).map((p: Record<string, unknown>) =>
+      mapPlaceToGooglePlace(p as Parameters<typeof mapPlaceToGooglePlace>[0])
+    );
+    raw.push(...pagePlaces);
+    pageToken = data.nextPageToken ?? undefined;
+    if (!pageToken || pagePlaces.length === 0) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  const passed = raw.filter(
+    (p) => !seenPlaceIds.has(p.place_id) && passesRatingGate(p, minRating, minReviews)
+  );
+  return passed.slice(0, maxCount);
 }
 
 const FSQ_BASE = "https://places-api.foursquare.com";
@@ -277,6 +493,7 @@ const FSQ_HEADERS = {
 let fsqRateLimited = false;
 let MAX_FSQ_CALLS: number | undefined;
 let fsqCallsMade = 0;
+let googleCallsMade = 0;
 
 function checkFsqLimit(): boolean {
   if (fsqRateLimited) return true;
@@ -331,6 +548,43 @@ async function searchFoursquarePlace(name: string, lat: number, lng: number): Pr
   // Never fallback to results[0] when no match — avoids wrong venue (e.g. fish store for La Baldosa Milonga)
   if (!match) return null;
   return match.fsq_place_id ?? match.fsq_id ?? null;
+}
+
+/** Max tips to store per venue; small representative sample for AI enrichment */
+const MAX_TIPS_PER_VENUE = 8;
+
+/** Skip re-fetching tips if last fetch within this many days */
+const TIPS_FRESHNESS_DAYS = 90;
+
+function isTipsFresh(fetchedAt: string | null | undefined): boolean {
+  if (!fetchedAt) return false;
+  const d = new Date(fetchedAt);
+  if (Number.isNaN(d.getTime())) return false;
+  const daysSince = (Date.now() - d.getTime()) / (24 * 60 * 60 * 1000);
+  return daysSince < TIPS_FRESHNESS_DAYS;
+}
+
+/** Fetch top tips for a place. Counts toward MAX_FSQ_CALLS. */
+async function getFoursquareTips(fsqId: string): Promise<FoursquareTip[]> {
+  if (checkFsqLimit()) return [];
+  fsqCallsMade++;
+  const url = new URL(`${FSQ_BASE}/places/${fsqId}/tips`);
+  url.searchParams.set("limit", String(MAX_TIPS_PER_VENUE));
+  url.searchParams.set("sort", "POPULAR");
+  url.searchParams.set("fields", "text,created_at,lang,agree_count");
+
+  const res = await fetch(url.toString(), { headers: FSQ_HEADERS });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const items = Array.isArray(data) ? data : data?.results ?? [];
+  return items
+    .filter((t: { text?: string }) => typeof t?.text === "string" && t.text.trim().length > 0)
+    .map((t: { text: string; created_at?: string; lang?: string; agree_count?: number }) => ({
+      text: (t.text ?? "").trim(),
+      created_at: t.created_at ?? undefined,
+      lang: t.lang ?? undefined,
+      likes: typeof t.agree_count === "number" ? t.agree_count : undefined,
+    }));
 }
 
 /** Foursquare Place Details — includes categories for fsq_categories. */
@@ -461,6 +715,7 @@ async function resolveNeighborhoodFromCoords(
   url.searchParams.set("key", GOOGLE_API_KEY);
   url.searchParams.set("language", city.geocodeLanguage ?? "en");
 
+  googleCallsMade++;
   const res = await fetch(url.toString());
   const data = await res.json();
   if (data.status !== "OK" || !Array.isArray(data.results)) {
@@ -601,18 +856,46 @@ async function getExistingVenue(
   return data;
 }
 
+/** Batch-fetch existing venues by google_place_id (reduces Supabase calls in incremental mode). */
+async function batchGetExistingVenues(
+  placeIds: string[],
+  city: CityConfigFromDb
+): Promise<Map<string, { id: string; neighborhood: string | null; foursquare_id: string | null; website_url: string | null }>> {
+  const map = new Map<string, { id: string; neighborhood: string | null; foursquare_id: string | null; website_url: string | null }>();
+  const CHUNK = 200;
+  for (let i = 0; i < placeIds.length; i += CHUNK) {
+    const chunk = placeIds.slice(i, i + CHUNK);
+    let q = supabase.from("venues").select("google_place_id, id, neighborhood, foursquare_id, website_url").in("google_place_id", chunk);
+    if (city.dbId) q = q.eq("city_id", city.dbId);
+    else q = q.eq("city", city.cityFallbackName ?? city.name);
+    const { data } = await q;
+    for (const row of data ?? []) {
+      if (row.google_place_id) map.set(row.google_place_id, { id: row.id, neighborhood: row.neighborhood, foursquare_id: row.foursquare_id, website_url: row.website_url });
+    }
+  }
+  return map;
+}
+
 /** Find existing venue with same canonical_key in same city (merge-before-insert) */
 async function findVenueByCanonicalKey(
   canonicalKey: string,
   city: CityConfigFromDb
-): Promise<string | null> {
+): Promise<{ id: string; fsq_tips_fetched_at: string | null } | null> {
   if (canonicalKey === "") return null;
   const cityName = city.cityFallbackName ?? city.name;
-  let q = supabase.from("venues").select("id").eq("canonical_key", canonicalKey).limit(1);
+  let q = supabase
+    .from("venues")
+    .select("id, fsq_tips_fetched_at")
+    .eq("canonical_key", canonicalKey)
+    .limit(1);
   if (city.dbId) q = q.eq("city_id", city.dbId);
   else q = q.eq("city", cityName);
   const { data } = await q.maybeSingle();
-  return data?.id ?? null;
+  if (!data?.id) return null;
+  return {
+    id: data.id,
+    fsq_tips_fetched_at: (data.fsq_tips_fetched_at as string | null) ?? null,
+  };
 }
 
 async function upsertVenue(
@@ -622,6 +905,7 @@ async function upsertVenue(
   city: CityConfigFromDb,
   canonicalKey: string
 ) {
+
   const payload: Record<string, unknown> = {
     google_place_id: place.place_id,
     name: place.name,
@@ -647,6 +931,10 @@ async function upsertVenue(
     payload.rating = fsq.rating;
     payload.rating_count = fsq.rating_count;
     payload.photo_urls = fsq.photo_urls ?? [];
+    if (fsq.tips != null && fsq.tips.length > 0) {
+      payload.fsq_tips = fsq.tips;
+      payload.fsq_tips_fetched_at = new Date().toISOString();
+    }
   } else {
     payload.foursquare_id = null;
     payload.address = null;
@@ -708,7 +996,10 @@ async function main() {
   const args = process.argv.filter((a) => !a.startsWith("--"));
   const citySlug = args[2] ?? (await getDefaultCitySlug(supabase));
   const INCREMENTAL = process.argv.includes("--incremental");
+  const FORCE = process.argv.includes("--force");
   const LIST_CITIES = process.argv.includes("--list");
+  const categoryArg = process.argv.find((a) => a.startsWith("--category="));
+  const CATEGORY_FILTER = categoryArg ? categoryArg.split("=")[1]?.split(",").map((s) => s.trim()).filter(Boolean) : null;
 
   if (LIST_CITIES) {
     console.log("\n📋 Available cities:\n");
@@ -724,7 +1015,9 @@ async function main() {
         if (c) console.log(`   ${slug} — ${c.name} (config)`);
       }
     }
-    console.log("\nUsage: npx tsx scripts/ingest-places-typed.ts <city-slug> [--incremental]\n");
+    console.log("\nUsage: npx tsx scripts/ingest-places-typed.ts <city-slug> [--incremental] [--force] [--category=cafe]");
+    console.log("Production (live cities): npm run ingest:places:typed -- <city-slug> --force --incremental");
+    console.log("Cafe-only test: npm run ingest:places:typed -- buenos-aires --force --incremental --category=cafe\n");
     return;
   }
 
@@ -751,6 +1044,7 @@ async function main() {
     MAX_FSQ_CALLS = process.env.MAX_FOURSQUARE_CALLS ? parseInt(process.env.MAX_FOURSQUARE_CALLS, 10) : undefined;
   }
 
+  const startedAt = new Date();
   const cityName = city.cityFallbackName ?? city.name;
   console.log(`\n🌆 Ingesting (typed/tiled): ${city.name}\n`);
   console.log(
@@ -758,37 +1052,72 @@ async function main() {
       ? "🔍 Mode: incremental — skipping Foursquare for venues that already have data.\n"
       : "🔍 Mode: full — Foursquare enrichment for every place.\n"
   );
+  if (FORCE) console.log("   ⚡ --force: bypassing max_total_per_city cap\n");
   if (MAX_FSQ_CALLS != null) console.log(`   Foursquare cap: ${MAX_FSQ_CALLS}\n`);
 
   let totalFetched = 0;
   let totalSaved = 0;
   let totalSkipped = 0;
   const perCategoryCounts = new Map<string, number>();
+  const neighborhoodCounts = new Map<string, number>();
   const maxTotalPerCity = city.maxTotalPerCity;
 
-  const categories = city.categories as unknown as CategoryWithDiscovery[];
+  let categories = city.categories as unknown as CategoryWithDiscovery[];
+  if (CATEGORY_FILTER && CATEGORY_FILTER.length > 0) {
+    categories = categories.filter((c) => CATEGORY_FILTER.includes(c.category));
+    console.log(`   🎯 Category filter: ${CATEGORY_FILTER.join(", ")} only\n`);
+  }
   const cityWithTiling = city as unknown as CityWithTiling;
 
   for (const cat of categories) {
-    if (maxTotalPerCity != null) {
-      const { count } = await supabase
-        .from("venues")
-        .select("id", { count: "exact", head: true })
-        .eq("city", city.name);
+    if (!FORCE && maxTotalPerCity != null) {
+      let countQuery = supabase.from("venues").select("id", { count: "exact", head: true });
+      if (city.dbId) countQuery = countQuery.eq("city_id", city.dbId);
+      else countQuery = countQuery.eq("city", city.name);
+      const { count } = await countQuery;
       if ((count ?? 0) >= maxTotalPerCity) {
         console.log(`   ⏹️ Reached max_total_per_city (${maxTotalPerCity}); stopping.`);
         break;
       }
     }
 
-    const maxCount = (cat as { maxCount?: number }).maxCount;
-    console.log(`📂 ${cat.category}: ${cat.googleIncludedType ? `type=${cat.googleIncludedType}` : "text"} "${cat.query}"`);
-    const places = await searchGooglePlacesTyped(cat, cityWithTiling, maxCount);
-    console.log(`   Found ${places.length} places (rating gate applied)`);
+    const profileNote = cat.category === "cafe" ? " [minimal profile]" : "";
+    console.log(`📂 ${cat.category}: ${cat.googleIncludedType ? `type=${cat.googleIncludedType}` : "text"} "${cat.query}"${profileNote}`);
+    const { places: tilePlaces, tileCounts } = await searchGooglePlacesTyped(cat, cityWithTiling);
+    const seenPlaceIds = new Set(tilePlaces.map((p) => p.place_id));
+
+    const neighborhoodQueries = (city as { neighborhoodQueries?: { query: string; category: string; neighborhood: string }[] }).neighborhoodQueries ?? [];
+    const nqsForCat = neighborhoodQueries.filter((nq) => nq.category === cat.category);
+    let neighborhoodPlaces: GooglePlace[] = [];
+    for (const nq of nqsForCat) {
+      const extra = await searchGooglePlacesNeighborhood(
+        nq.query,
+        cat,
+        cityWithTiling,
+        seenPlaceIds,
+        15
+      );
+      for (const p of extra) seenPlaceIds.add(p.place_id);
+      neighborhoodPlaces = neighborhoodPlaces.concat(extra);
+      if (extra.length > 0) console.log(`   + ${nq.neighborhood}: ${extra.length} from "${nq.query}"`);
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    const places = [...tilePlaces, ...neighborhoodPlaces];
+    console.log(`   Found ${tilePlaces.length} (tiles) + ${neighborhoodPlaces.length} (neighborhoods) = ${places.length} places`);
+    const tileEntries = Object.entries(tileCounts).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+    if (tileEntries.length > 0) {
+      const tileStr = tileEntries.map(([k, v]) => `${k}:${v}`).join(" ");
+      console.log(`   Per-tile: ${tileStr}`);
+    }
     totalFetched += places.length;
 
+    const existingByPlaceId = INCREMENTAL && places.length > 0
+      ? await batchGetExistingVenues(places.map((p) => p.place_id), city)
+      : new Map<string, { id: string; neighborhood: string | null; foursquare_id: string | null; website_url: string | null }>();
+
     for (const place of places) {
-      const existing = INCREMENTAL ? await getExistingVenue(place.place_id) : null;
+      const existing = INCREMENTAL ? existingByPlaceId.get(place.place_id) ?? null : null;
       const skipEnrichment = INCREMENTAL && !!existing?.foursquare_id;
 
       let fsq: FoursquareData | null = null;
@@ -814,10 +1143,16 @@ async function main() {
 
         resolvedNeighborhood = await resolveNeighborhood(place, city, fsq);
         const canonicalKey = computeCanonicalKey(place, fsq);
-        venueId = await findVenueByCanonicalKey(canonicalKey, city);
-        if (!venueId) {
-          venueId = await upsertVenue(place, resolvedNeighborhood, fsq, city, canonicalKey);
+        // Do NOT merge by canonical_key: distinct businesses at same address would overwrite each other.
+        // Use google_place_id as sole identity. See migration 041, DATA-QUALITY-AND-PERFORMANCE §5.
+
+        const shouldFetchTips = fsq && !!fsqId;
+        if (shouldFetchTips && fsq) {
+          fsq.tips = await getFoursquareTips(fsqId);
+          if (fsq.tips.length > 0) await new Promise((r) => setTimeout(r, 150));
         }
+
+        venueId = await upsertVenue(place, resolvedNeighborhood, fsq, city, canonicalKey);
         website = fsq?.website ?? null;
         priceUsd = fsqPriceToUsd(fsq?.price ?? null);
         fsqDescription = fsq?.description;
@@ -827,6 +1162,7 @@ async function main() {
         await upsertHighlight(venueId, place, cat.category, resolvedNeighborhood, website, priceUsd, city, fsqDescription);
         totalSaved++;
         perCategoryCounts.set(cat.category, (perCategoryCounts.get(cat.category) ?? 0) + 1);
+        neighborhoodCounts.set(resolvedNeighborhood, (neighborhoodCounts.get(resolvedNeighborhood) ?? 0) + 1);
         const fsqStr = fsq?.rating != null ? `, ${fsq.rating}⭐ (FSQ)` : skipEnrichment ? " [skipped]" : "";
         console.log(`   ✅ ${place.name} (${resolvedNeighborhood}${fsqStr})`);
       }
@@ -835,17 +1171,29 @@ async function main() {
     console.log();
   }
 
+  const finishedAt = new Date();
   await supabase.from("ingestion_jobs").insert({
     source: city.dbId ? `ingest-places-typed:${city.dbId}` : `ingest-places-typed:${city.id}`,
     status: "success",
-    started_at: new Date().toISOString(),
-    finished_at: new Date().toISOString(),
+    started_at: startedAt.toISOString(),
+    finished_at: finishedAt.toISOString(),
     items_fetched: totalFetched,
     items_successful: totalSaved,
+    run_metadata: {
+      google_calls: googleCallsMade,
+      fsq_calls: fsqCallsMade,
+      city_slug: citySlug ?? city.id,
+    },
   });
 
   console.log(`\n✨ Done! Fetched ${totalFetched}, saved ${totalSaved}${totalSkipped > 0 ? `, skipped ${totalSkipped} (incremental)` : ""}.`);
+  console.log(`   📊 API calls — Google: ${googleCallsMade}, Foursquare: ${fsqCallsMade} (record in docs/COST-LOG.md)`);
   console.log("   Per category:", Object.fromEntries(perCategoryCounts));
+  const neighEntries = [...neighborhoodCounts.entries()].sort((a, b) => b[1] - a[1]);
+  if (neighEntries.length > 0) {
+    const topNeigh = neighEntries.slice(0, 15).map(([n, c]) => `${n}:${c}`).join(", ");
+    console.log(`   Per neighborhood (top 15): ${topNeigh}`);
+  }
 }
 
 main().catch(console.error);

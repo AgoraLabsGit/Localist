@@ -1,16 +1,24 @@
 "use client";
 
 /**
- * Multi-step onboarding flow per docs/CONCIERGE.md
- * Screens 0–8: City → Home Neighborhood → Favorites → Persona → Weekday → Weekend → Categories → Fine-tune → Acquisition
- * (Welcome merged with City to reduce taps)
+ * 7-step onboarding flow per ROADMAP Phase 1.2
+ * 1. Where you are (city + home + favorites)
+ * 2. Who you are (persona)
+ * 3. When & how often (weekly outings, time blocks, typical group)
+ * 4. What you're into (categories + primary)
+ * 5. Budget & vibe
+ * 6. Constraints & exploration (optional)
+ * 7. Acquisition source
  */
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft } from "lucide-react";
 import { SUPPORTED_CITIES } from "@/lib/cities";
 import { useCities, getClosestCity, type SupportedCity } from "@/hooks/use-cities";
 import { useNeighborhoods } from "@/hooks/use-neighborhoods";
+import { TYPE_GROUPS, formatFilterLabel } from "@/components/filter-sheet";
 import { cn } from "@/lib/utils";
+
+const TOTAL_STEPS = 7;
 
 const PERSONA_OPTIONS = [
   { id: "local" as const, label: "I live here" },
@@ -18,53 +26,73 @@ const PERSONA_OPTIONS = [
   { id: "tourist" as const, label: "I'm visiting for a trip" },
 ];
 
-const WEEKDAY_OPTIONS = [
-  { id: "cafes_work", label: "Cafés to work or read", slugs: ["cafe"] },
-  { id: "parks_walks", label: "Parks & walks", slugs: [] },
-  { id: "after_work_drinks", label: "After-work drinks", slugs: ["cocktail_bar", "wine_bar", "rooftop"] },
-  { id: "quiet_dinners", label: "Quiet dinners", slugs: ["parrilla"] },
-  { id: "quick_lunch", label: "Quick lunch spots", slugs: ["parrilla", "heladeria"] },
-  { id: "culture", label: "Culture (museums, galleries)", slugs: ["museum"] },
-  { id: "gym_fitness", label: "Gym or fitness nearby", slugs: [] },
-  { id: "shopping", label: "Shopping or errands", slugs: [] },
+const WEEKLY_OUTING_OPTIONS = [
+  { id: 1, label: "0–1 a week" },
+  { id: 2, label: "2–3 a week" },
+  { id: 3, label: "4–5 a week" },
+  { id: 4, label: "6+ a week" },
 ];
 
-const WEEKEND_OPTIONS = [
-  { id: "bars_nightlife", label: "Bars & nightlife", slugs: ["cocktail_bar", "tango_bar", "jazz_bar"] },
-  { id: "live_music", label: "Live music / shows", slugs: ["jazz_bar", "tango_bar"] },
-  { id: "food_spots", label: "Food spots & long dinners", slugs: ["parrilla", "brunch", "heladeria"] },
-  { id: "brunch", label: "Brunch", slugs: ["brunch", "cafe"] },
-  { id: "day_trips", label: "Day trips / exploring neighborhoods", slugs: [] },
-  { id: "chill_cafes_parks", label: "Chill cafés & parks", slugs: ["cafe"] },
-  { id: "markets", label: "Markets & street food", slugs: [] },
-  { id: "sports", label: "Sports or outdoor activities", slugs: [] },
+const TIME_BLOCK_OPTIONS = [
+  { id: "weekday_evenings", label: "Weekday evenings" },
+  { id: "weekend_afternoons", label: "Weekend afternoons" },
+  { id: "weekend_evenings", label: "Weekend evenings" },
+  { id: "sunday_daytime", label: "Sunday daytime" },
 ];
 
-const CATEGORY_OPTIONS = [
-  { id: "parrilla", label: "Parrillas & steakhouses" },
-  { id: "cocktail_bar", label: "Cocktail bars" },
-  { id: "wine_bar", label: "Dive bars / local spots" },
-  { id: "cafe", label: "Cafés" },
-  { id: "tango_bar", label: "Tango & live music" },
-  { id: "museum", label: "Museums & culture" },
-  { id: "rooftop", label: "Parks & outdoors" },
+const TYPICAL_GROUP_OPTIONS = [
+  { id: "solo" as const, label: "Usually solo" },
+  { id: "couple" as const, label: "With a partner" },
+  { id: "friends" as const, label: "With friends" },
+  { id: "mixed" as const, label: "It varies" },
 ];
+
+const CATEGORY_OPTIONS = TYPE_GROUPS.flatMap((g) =>
+  g.types.map((id) => ({ id, label: formatFilterLabel(id), group: g.label }))
+);
 
 const VIBE_OPTIONS = [
   { id: "solo_friendly", label: "Solo-friendly" },
   { id: "group_friendly", label: "Group-friendly" },
   { id: "date_night", label: "Date night" },
+  { id: "cozy", label: "Cozy" },
   { id: "lively", label: "Lively" },
-  { id: "touristy", label: "Touristy hits" },
-  { id: "local", label: "More local / low-key" },
-  { id: "hidden_gem", label: "Hidden gems" },
-  { id: "local_favorite", label: "Local favorites" },
+];
+
+const TOURISTY_VS_LOCAL_OPTIONS = [
+  { id: "touristy_ok" as const, label: "Mostly touristy is fine" },
+  { id: "balanced" as const, label: "Mix of both" },
+  { id: "local_only" as const, label: "Prefer local / off the beaten path" },
 ];
 
 const BUDGET_OPTIONS = [
   { id: "cheap" as const, label: "Mostly cheap" },
   { id: "mid" as const, label: "Mid-range" },
   { id: "splurge" as const, label: "Happy to splurge sometimes" },
+];
+
+const DIETARY_OPTIONS = [
+  { id: "vegetarian", label: "Vegetarian" },
+  { id: "vegan", label: "Vegan" },
+  { id: "gluten_free", label: "Gluten-free" },
+];
+
+const ALCOHOL_OPTIONS = [
+  { id: "okay" as const, label: "I drink" },
+  { id: "lowkey" as const, label: "Sometimes / low-key" },
+  { id: "avoid" as const, label: "I avoid alcohol" },
+];
+
+const RADIUS_OPTIONS = [
+  { id: "near_home" as const, label: "Stay near home" },
+  { id: "few_barrios" as const, label: "A few neighborhoods" },
+  { id: "whole_city" as const, label: "Explore the whole city" },
+];
+
+const EXPLORATION_OPTIONS = [
+  { id: "favorites" as const, label: "Stick to favorites" },
+  { id: "balanced" as const, label: "Mix of both" },
+  { id: "adventurous" as const, label: "Always discovering new spots" },
 ];
 
 const ACQUISITION_OPTIONS = [
@@ -75,16 +103,28 @@ const ACQUISITION_OPTIONS = [
   { id: "other", label: "Other" },
 ];
 
-function CitySelectionStep({
+function WhereStep({
   homeCity,
+  homeNeighborhood,
+  preferredNeighborhoods,
   onCityChange,
+  onHomeSelect,
+  onToggleFavorite,
+  onNotSureHome,
   onNext,
   cities,
+  neighborhoods,
 }: {
   homeCity: string;
+  homeNeighborhood: string | null;
+  preferredNeighborhoods: string[];
   onCityChange: (city: string) => void;
+  onHomeSelect: (n: string | null) => void;
+  onToggleFavorite: (n: string) => void;
+  onNotSureHome: () => void;
   onNext: () => void;
   cities: SupportedCity[];
+  neighborhoods: string[];
 }) {
   const [query, setQuery] = useState(homeCity);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -107,10 +147,14 @@ function CitySelectionStep({
         if (city) onCityChangeRef.current(city.name);
         setGeoLoading(false);
       },
-      () => { if (!cancelled) setGeoLoading(false); },
+      () => {
+        if (!cancelled) setGeoLoading(false);
+      },
       { enableHighAccuracy: false, timeout: 5000 }
     );
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [citiesList.length]);
 
   const filtered = citiesList.filter((c) =>
@@ -124,46 +168,92 @@ function CitySelectionStep({
         <h2 className="text-2xl font-semibold text-center">
           Let&apos;s find your city&apos;s best spots
         </h2>
-        <p className="text-muted-foreground text-center mt-2">
-          Where are you right now?
-        </p>
-        <p className="text-xs text-muted-foreground text-center mt-1">
-          We&apos;ll use this to tailor your picks in Concierge.
-        </p>
+        <p className="text-muted-foreground text-center mt-2">Where are you right now?</p>
       </div>
-      <div className="space-y-2">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search cities…"
-          className="w-full rounded-[14px] border border-border-app bg-surface-alt px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-        />
-        {geoLoading && (
-          <p className="text-xs text-muted-foreground">Detecting your location…</p>
-        )}
-        <div className="flex flex-wrap gap-2">
-          {filtered.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => onCityChange(c.name)}
-              className={cn(
-                "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                selectedCity?.id === c.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-              )}
-            >
-              {c.name}
-            </button>
-          ))}
+      <div className="space-y-4">
+        <div>
+          <p className="text-sm font-medium mb-2">City</p>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search cities…"
+            className="w-full rounded-[14px] border border-border-app bg-surface-alt px-4 py-3 text-sm"
+          />
+          {geoLoading && <p className="text-xs text-muted-foreground mt-1">Detecting…</p>}
+          <div className="flex flex-wrap gap-2 mt-2">
+            {filtered.slice(0, 8).map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onCityChange(c.name)}
+                className={cn(
+                  "text-sm font-medium px-4 py-2 rounded-full",
+                  selectedCity?.id === c.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                )}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
         </div>
+        {homeCity && (
+          <div>
+            <p className="text-sm font-medium mb-2">Which neighborhood do you live in?</p>
+            <div className="flex flex-wrap gap-2">
+              {neighborhoods.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => onHomeSelect(homeNeighborhood === n ? null : n)}
+                  className={cn(
+                    "text-sm font-medium px-4 py-2 rounded-full",
+                    homeNeighborhood === n ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={onNotSureHome}
+                className={cn(
+                  "text-sm font-medium px-4 py-2 rounded-full",
+                  !homeNeighborhood ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                )}
+              >
+                Not sure yet
+              </button>
+            </div>
+          </div>
+        )}
+        {homeCity && neighborhoods.length > 0 && (
+          <div>
+            <p className="text-sm font-medium mb-2">Favorite neighborhoods to explore? (optional)</p>
+            <div className="flex flex-wrap gap-2">
+              {neighborhoods.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => onToggleFavorite(n)}
+                  className={cn(
+                    "text-sm font-medium px-4 py-2 rounded-full",
+                    preferredNeighborhoods.includes(n) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div className="pt-4">
         <button
           type="button"
           onClick={onNext}
           disabled={!homeCity?.trim()}
-          className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors touch-manipulation"
+          className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           Continue
         </button>
@@ -172,233 +262,53 @@ function CitySelectionStep({
   );
 }
 
-function HomeNeighborhoodStep({
-  homeNeighborhood,
-  onSelect,
-  onNotSure,
-  onNext,
-  neighborhoods,
-}: {
-  homeNeighborhood: string | null;
-  onSelect: (n: string) => void;
-  onNotSure: () => void;
-  onNext: () => void;
-  neighborhoods: string[];
-}) {
-  return (
-    <>
-      <div>
-        <h2 className="text-lg font-semibold">Which neighborhood do you live in?</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          We&apos;ll use this for &quot;Near me&quot; when location isn&apos;t available.
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {neighborhoods.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onSelect(n)}
-            className={cn(
-              "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-              homeNeighborhood === n ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-            )}
-          >
-            {n}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={onNotSure}
-          className={cn(
-            "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-            !homeNeighborhood ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-          )}
-        >
-          I&apos;m not sure yet
-        </button>
-      </div>
-      <div className="pt-4">
-        <button
-          type="button"
-          onClick={onNext}
-          className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors touch-manipulation"
-        >
-          Next
-        </button>
-      </div>
-    </>
-  );
-}
-
-function FavoriteNeighborhoodsStep({
-  preferredNeighborhoods,
-  primaryNeighborhoodFreeform,
-  onToggleNeighborhood,
-  onAnotherNeighborhood,
-  onNotSure,
-  onNext,
-  neighborhoods,
-}: {
-  preferredNeighborhoods: string[];
-  primaryNeighborhoodFreeform: string | null;
-  onToggleNeighborhood: (n: string) => void;
-  onAnotherNeighborhood: (freeform: string | null) => void;
-  onNotSure: () => void;
-  onNext: () => void;
-  neighborhoods: string[];
-}) {
-  const [showFreeform, setShowFreeform] = useState(!!primaryNeighborhoodFreeform);
-  const [freeformValue, setFreeformValue] = useState(primaryNeighborhoodFreeform ?? "");
-
-  const handleAnotherSubmit = () => {
-    onAnotherNeighborhood(freeformValue.trim() || null);
-    setShowFreeform(false);
-  };
-
-  return (
-    <>
-      <div>
-        <h2 className="text-lg font-semibold">What are your favorite neighborhoods to explore?</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Select all that apply. We&apos;ll prioritize places in these areas.
-        </p>
-      </div>
-      {!showFreeform ? (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {neighborhoods.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => onToggleNeighborhood(n)}
-                className={cn(
-                  "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                  preferredNeighborhoods.includes(n) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-                )}
-              >
-                {n}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setShowFreeform(true)}
-              className={cn(
-                "text-sm font-medium px-4 py-2 rounded-full border border-dashed transition-colors",
-                primaryNeighborhoodFreeform ? "border-primary text-primary" : "border-border-app text-muted-foreground hover:bg-surface-alt"
-              )}
-            >
-              Another neighborhood
-            </button>
-            <button
-              type="button"
-              onClick={onNotSure}
-              className={cn(
-                "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                preferredNeighborhoods.length === 0 && !primaryNeighborhoodFreeform ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-              )}
-            >
-              I&apos;m not sure yet
-            </button>
-          </div>
-          <div className="pt-4">
-            <button
-              type="button"
-              onClick={onNext}
-              className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors touch-manipulation"
-            >
-              Next
-            </button>
-          </div>
-        </>
-      ) : (
-        <div className="space-y-2">
-          <input
-            type="text"
-            value={freeformValue}
-            onChange={(e) => setFreeformValue(e.target.value)}
-            placeholder="Type your neighborhood (optional)"
-            className="w-full rounded-[14px] border border-border-app bg-surface-alt px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-            autoFocus
-          />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setShowFreeform(false);
-                setFreeformValue("");
-                onAnotherNeighborhood(null);
-              }}
-              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={() => { handleAnotherSubmit(); onNext(); }}
-              className="flex-1 rounded-lg bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
 export interface OnboardingData {
   home_city: string;
   home_neighborhood: string | null;
-  primary_neighborhood_freeform: string | null;
   preferred_neighborhoods: string[];
   persona_type: "local" | "nomad" | "tourist" | null;
-  weekday_preferences: string[];
-  weekend_preferences: string[];
+  weekly_outing_target: number | null;
+  preferred_time_blocks: string[];
+  typical_group_type: "solo" | "couple" | "friends" | "mixed" | null;
   interests: string[];
-  vibe_tags_preferred: string[];
+  primary_categories: string[];
+  secondary_categories: string[];
   budget_band: "cheap" | "mid" | "splurge" | null;
+  vibe_tags_preferred: string[];
+  touristy_vs_local_preference: "touristy_ok" | "balanced" | "local_only" | null;
+  dietary_flags: string[];
+  alcohol_preference: "okay" | "lowkey" | "avoid" | null;
+  radius_preference: "near_home" | "few_barrios" | "whole_city" | null;
+  exploration_style: "favorites" | "balanced" | "adventurous" | null;
   acquisition_source: string | null;
 }
 
 const DEFAULT_DATA: OnboardingData = {
   home_city: "Buenos Aires",
   home_neighborhood: null,
-  primary_neighborhood_freeform: null,
   preferred_neighborhoods: [],
   persona_type: null,
-  weekday_preferences: [],
-  weekend_preferences: [],
+  weekly_outing_target: null,
+  preferred_time_blocks: [],
+  typical_group_type: null,
   interests: [],
-  vibe_tags_preferred: [],
+  primary_categories: [],
+  secondary_categories: [],
   budget_band: null,
+  vibe_tags_preferred: [],
+  touristy_vs_local_preference: null,
+  dietary_flags: [],
+  alcohol_preference: null,
+  radius_preference: null,
+  exploration_style: null,
   acquisition_source: null,
 };
 
-function collectInterestsFromDayPrefs(
-  weekday: string[],
-  weekend: string[],
-  explicitInterests: string[]
-): string[] {
-  const fromSlugs = new Set<string>();
-  for (const w of weekday) {
-    const opt = WEEKDAY_OPTIONS.find((o) => o.id === w);
-    opt?.slugs.forEach((s) => fromSlugs.add(s));
-  }
-  for (const w of weekend) {
-    const opt = WEEKEND_OPTIONS.find((o) => o.id === w);
-    opt?.slugs.forEach((s) => fromSlugs.add(s));
-  }
-  const merged = new Set([...fromSlugs, ...explicitInterests]);
-  return merged.size > 0 ? Array.from(merged) : ["cafe", "parrilla", "cocktail_bar"];
-}
-
 interface OnboardingFlowProps {
-  /** Called when onboarding completes. Default: POST /api/onboarding then redirect to / */
   onComplete?: (data: OnboardingData) => Promise<void>;
 }
 
-const defaultOnComplete: (data: OnboardingData) => Promise<void> = async (data) => {
+const defaultOnComplete = async (data: OnboardingData) => {
   const res = await fetch("/api/onboarding", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -415,70 +325,57 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
   const { cities } = useCities();
   const { neighborhoods } = useNeighborhoods(data.home_city);
 
-  const totalSteps = 9; // 0–8: City, Home, Favorites, Persona, Weekday, Weekend, Categories, Fine-tune, Acquisition
-  const progress = step + 1;
-
-  const toggle = (
-    key: keyof OnboardingData,
-    value: string,
-    isArray: boolean
-  ) => {
+  const toggle = (key: keyof OnboardingData, value: string, isArray: boolean) => {
     setData((d) => {
       const current = d[key];
       if (isArray && Array.isArray(current)) {
         const arr = current as string[];
-        return {
-          ...d,
-          [key]: arr.includes(value)
-            ? arr.filter((x) => x !== value)
-            : [...arr, value],
-        };
+        const removing = arr.includes(value);
+        const next = removing ? arr.filter((x) => x !== value) : [...arr, value];
+        const updates: Partial<OnboardingData> = { [key]: next };
+        // When removing an interest, keep primary ⊂ interests
+        if (key === "interests" && removing && d.primary_categories.includes(value)) {
+          updates.primary_categories = d.primary_categories.filter((x) => x !== value);
+        }
+        return { ...d, ...updates };
       }
       return { ...d, [key]: value };
     });
   };
 
-  const setSingle = (key: keyof OnboardingData, value: string | null) => {
+  const setSingle = (key: keyof OnboardingData, value: string | number | null) => {
     setData((d) => ({ ...d, [key]: value }));
   };
 
   const handleNext = () => {
-    if (step < totalSteps - 1) {
-      setStep(step + 1);
-    } else {
-      handleFinish();
-    }
+    if (step < TOTAL_STEPS - 1) setStep(step + 1);
+    else handleFinish();
   };
 
   const handleSkip = () => {
-    if (step === 7) {
-      // Fine-tune is skippable — go to Acquisition
-      setStep(8);
-    } else if (step >= 4) {
-      // "Skip for now" from step 4+ (persona done) jumps to feed
-      handleFinish();
-    }
+    if (step === 5) setStep(6); // Skip constraints
+    else if (step >= 2) handleFinish(); // Skip from step 3+ goes to finish
   };
 
   const handleFinish = async () => {
     setSaving(true);
-    const interests = collectInterestsFromDayPrefs(
-      data.weekday_preferences,
-      data.weekend_preferences,
-      data.interests
-    );
     const preferred_neighborhoods =
-      data.preferred_neighborhoods?.length > 0
+      data.preferred_neighborhoods.length > 0
         ? data.preferred_neighborhoods
-        : data.primary_neighborhood_freeform
-          ? [data.primary_neighborhood_freeform]
-          : data.home_neighborhood
-            ? [data.home_neighborhood]
-            : [];
+        : data.home_neighborhood
+          ? [data.home_neighborhood]
+          : [];
+    const interests = data.interests.length > 0 ? data.interests : ["cafe", "parrilla", "cocktail_bar"];
+    // primary ⊂ interests; secondary = interests − primary
+    const rawPrimary = data.primary_categories.length > 0 ? data.primary_categories : interests.slice(0, 2);
+    const primary = rawPrimary.filter((x) => interests.includes(x)).slice(0, 2);
+    const secondary = interests.filter((x) => !primary.includes(x));
     await onComplete({
       ...data,
       preferred_neighborhoods,
-      interests: interests.length > 0 ? interests : ["cafe", "parrilla", "cocktail_bar"],
+      interests,
+      primary_categories: primary,
+      secondary_categories: secondary,
     });
     setSaving(false);
   };
@@ -488,20 +385,14 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
       case 0:
         return !!data.home_city?.trim();
       case 1:
-        return true; // Home neighborhood optional (I'm not sure)
-      case 2:
-        return true; // Favorite neighborhoods optional
-      case 3:
         return !!data.persona_type;
-      case 4:
-        return data.weekday_preferences.length > 0;
-      case 5:
-        return data.weekend_preferences.length > 0;
-      case 6:
+      case 2:
+        return data.preferred_time_blocks.length > 0 || data.weekly_outing_target != null;
+      case 3:
         return data.interests.length > 0;
-      case 7:
-        return true; // Optional
-      case 8:
+      case 4:
+      case 5:
+      case 6:
         return true;
       default:
         return true;
@@ -510,7 +401,6 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
 
   return (
     <div className="min-h-[60vh] flex flex-col">
-      {/* Back button + Progress */}
       <div className="flex items-center gap-3 mb-6">
         {step > 0 ? (
           <button
@@ -525,75 +415,39 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
           <div className="w-8 shrink-0" />
         )}
         <div className="flex flex-1 justify-center gap-1">
-          {Array.from({ length: totalSteps }).map((_, i) => (
+          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
             <div
               key={i}
-              className={cn(
-                "h-1 rounded-full flex-1 max-w-8 transition-colors",
-                i <= step ? "bg-primary" : "bg-surface-alt"
-              )}
+              className={cn("h-1 rounded-full flex-1 max-w-8", i <= step ? "bg-primary" : "bg-surface-alt")}
             />
           ))}
         </div>
       </div>
       <p className="text-xs text-muted-foreground text-center mb-2">
-        {progress} of {totalSteps}
+        {step + 1} of {TOTAL_STEPS}
       </p>
 
-      {/* Screen content */}
       <div className="flex-1 space-y-6">
         {step === 0 && (
-          <CitySelectionStep
+          <WhereStep
             homeCity={data.home_city}
+            homeNeighborhood={data.home_neighborhood}
+            preferredNeighborhoods={data.preferred_neighborhoods}
             onCityChange={(city) => setSingle("home_city", city)}
+            onHomeSelect={(n) => setSingle("home_neighborhood", n)}
+            onToggleFavorite={(n) => toggle("preferred_neighborhoods", n, true)}
+            onNotSureHome={() => setSingle("home_neighborhood", null)}
             onNext={handleNext}
             cities={cities}
+            neighborhoods={neighborhoods}
           />
         )}
 
         {step === 1 && (
-          <HomeNeighborhoodStep
-            homeNeighborhood={data.home_neighborhood}
-            onSelect={(n) => setSingle("home_neighborhood", n)}
-            onNotSure={() => setSingle("home_neighborhood", null)}
-            neighborhoods={neighborhoods}
-            onNext={handleNext}
-          />
-        )}
-
-        {step === 2 && (
-          <FavoriteNeighborhoodsStep
-            preferredNeighborhoods={data.preferred_neighborhoods}
-            primaryNeighborhoodFreeform={data.primary_neighborhood_freeform}
-            neighborhoods={neighborhoods}
-            onToggleNeighborhood={(n) => toggle("preferred_neighborhoods", n, true)}
-            onAnotherNeighborhood={(freeform) => {
-              setData((d) => ({
-                ...d,
-                primary_neighborhood_freeform: freeform || null,
-                preferred_neighborhoods: freeform
-                  ? [...(d.preferred_neighborhoods || []).filter((x) => x !== freeform), freeform]
-                  : d.preferred_neighborhoods || [],
-              }));
-            }}
-            onNotSure={() => {
-              setData((d) => ({
-                ...d,
-                preferred_neighborhoods: [],
-                primary_neighborhood_freeform: null,
-              }));
-            }}
-            onNext={handleNext}
-          />
-        )}
-
-        {step === 3 && (
           <>
             <div>
               <h2 className="text-lg font-semibold">What best describes you in this city?</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Helps us tailor frequency and suggestions.
-              </p>
+              <p className="text-sm text-muted-foreground mt-1">Helps us tailor suggestions.</p>
             </div>
             <div className="space-y-2">
               {PERSONA_OPTIONS.map((o) => (
@@ -602,22 +456,159 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                   type="button"
                   onClick={() => setSingle("persona_type", o.id)}
                   className={cn(
-                    "w-full text-left px-4 py-3 rounded-[14px] border text-sm font-medium transition-colors touch-manipulation",
-                    data.persona_type === o.id
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border-app hover:bg-surface-alt"
+                    "w-full text-left px-4 py-3 rounded-[14px] border text-sm font-medium",
+                    data.persona_type === o.id ? "border-primary bg-primary/10 text-primary" : "border-border-app hover:bg-surface-alt"
                   )}
                 >
                   {o.label}
                 </button>
               ))}
             </div>
-            <div className="pt-4 flex gap-2">
+            <div className="pt-4">
               <button
                 type="button"
                 onClick={handleNext}
                 disabled={!data.persona_type}
+                className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <div>
+              <h2 className="text-lg font-semibold">When & how often do you go out?</h2>
+              <p className="text-sm text-muted-foreground mt-1">We&apos;ll tailor how many picks to show.</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">Weekly outings</p>
+              <div className="flex flex-wrap gap-2">
+                {WEEKLY_OUTING_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSingle("weekly_outing_target", data.weekly_outing_target === o.id ? null : o.id)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.weekly_outing_target === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">When are you most likely to go out?</p>
+              <div className="flex flex-wrap gap-2">
+                {TIME_BLOCK_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => toggle("preferred_time_blocks", o.id, true)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.preferred_time_blocks.includes(o.id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">Usually going out with…</p>
+              <div className="flex flex-wrap gap-2">
+                {TYPICAL_GROUP_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSingle("typical_group_type", data.typical_group_type === o.id ? null : o.id)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.typical_group_type === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={data.preferred_time_blocks.length === 0 && data.weekly_outing_target == null}
                 className="flex-1 rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                Next
+              </button>
+              <button type="button" onClick={handleSkip} className="px-4 py-3 text-sm text-muted-foreground hover:text-foreground">
+                Skip for now
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <div>
+              <h2 className="text-lg font-semibold">What are you into?</h2>
+              <p className="text-sm text-muted-foreground mt-1">Pick categories you care about.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORY_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => toggle("interests", o.id, true)}
+                  className={cn(
+                    "text-sm font-medium px-4 py-2 rounded-full",
+                    data.interests.includes(o.id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            {data.interests.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">Pick up to 2 that matter most</p>
+                <div className="flex flex-wrap gap-2">
+                  {data.interests.map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => {
+                        const inPrimary = data.primary_categories.includes(id);
+                        const next = inPrimary
+                          ? data.primary_categories.filter((x) => x !== id)
+                          : data.primary_categories.length < 2
+                            ? [...data.primary_categories, id]
+                            : [data.primary_categories[1], id];
+                        setData((d) => ({ ...d, primary_categories: next }));
+                      }}
+                      className={cn(
+                        "text-sm font-medium px-4 py-2 rounded-full",
+                        data.primary_categories.includes(id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                      )}
+                    >
+                      {formatFilterLabel(id)}
+                      {data.primary_categories.includes(id) ? " ★" : ""}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={data.interests.length === 0}
+                className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 Next
               </button>
@@ -628,48 +619,71 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
         {step === 4 && (
           <>
             <div>
-              <h2 className="text-lg font-semibold">
-                On weekdays, what are you most in the mood for?
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Pick all that apply.
-              </p>
+              <h2 className="text-lg font-semibold">Budget & vibe</h2>
+              <p className="text-sm text-muted-foreground mt-1">Fine-tune your picks.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {WEEKDAY_OPTIONS.map((o) => (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => toggle("weekday_preferences", o.id, true)}
-                  className={cn(
-                    "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                    data.weekday_preferences.includes(o.id)
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-                  )}
-                >
-                  {o.label}
-                </button>
-              ))}
+            <div>
+              <p className="text-sm font-medium mb-2">Budget</p>
+              <div className="flex flex-wrap gap-2">
+                {BUDGET_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSingle("budget_band", data.budget_band === o.id ? null : o.id)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.budget_band === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="pt-4 flex gap-2">
+            <div>
+              <p className="text-sm font-medium mb-2">Vibes</p>
+              <div className="flex flex-wrap gap-2">
+                {VIBE_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => toggle("vibe_tags_preferred", o.id, true)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.vibe_tags_preferred.includes(o.id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">Touristy vs local?</p>
+              <div className="flex flex-wrap gap-2">
+                {TOURISTY_VS_LOCAL_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSingle("touristy_vs_local_preference", data.touristy_vs_local_preference === o.id ? null : o.id)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.touristy_vs_local_preference === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pt-4">
               <button
                 type="button"
                 onClick={handleNext}
-                disabled={data.weekday_preferences.length === 0}
-                className="flex-1 rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 Next
               </button>
-              {step >= 4 && (
-                <button
-                  type="button"
-                  onClick={handleSkip}
-                  className="px-4 py-3 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Skip for now
-                </button>
-              )}
             </div>
           </>
         )}
@@ -677,131 +691,79 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
         {step === 5 && (
           <>
             <div>
-              <h2 className="text-lg font-semibold">
-                On weekends, what sounds most like you?
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Pick all that apply.
-              </p>
+              <h2 className="text-lg font-semibold">Optional: constraints & exploration</h2>
+              <p className="text-sm text-muted-foreground mt-1">Change anytime in Settings.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {WEEKEND_OPTIONS.map((o) => (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => toggle("weekend_preferences", o.id, true)}
-                  className={cn(
-                    "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                    data.weekend_preferences.includes(o.id)
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-                  )}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            <div className="pt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={handleNext}
-                disabled={data.weekend_preferences.length === 0}
-                className="flex-1 rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          </>
-        )}
-
-        {step === 6 && (
-          <>
             <div>
-              <h2 className="text-lg font-semibold">
-                Pick a few things you care most about here
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                We&apos;ll use this to tailor your picks.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORY_OPTIONS.map((o) => (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => toggle("interests", o.id, true)}
-                  className={cn(
-                    "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                    data.interests.includes(o.id)
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-                  )}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            <div className="pt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={handleNext}
-                disabled={data.interests.length === 0}
-                className="flex-1 rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          </>
-        )}
-
-        {step === 7 && (
-          <>
-            <div>
-              <h2 className="text-lg font-semibold">Optional: fine-tune your picks</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                You can change this anytime in Settings.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm font-medium mb-2">What kind of places do you prefer?</p>
-                <div className="flex flex-wrap gap-2">
-                  {VIBE_OPTIONS.map((o) => (
-                    <button
-                      key={o.id}
-                      type="button"
-                      onClick={() => toggle("vibe_tags_preferred", o.id, true)}
-                      className={cn(
-                        "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                        data.vibe_tags_preferred.includes(o.id)
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-                      )}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
+              <p className="text-sm font-medium mb-2">Dietary</p>
+              <div className="flex flex-wrap gap-2">
+                {DIETARY_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => toggle("dietary_flags", o.id, true)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.dietary_flags.includes(o.id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
               </div>
-              <div>
-                <p className="text-sm font-medium mb-2">What&apos;s your usual going-out budget?</p>
-                <div className="flex flex-wrap gap-2">
-                  {BUDGET_OPTIONS.map((o) => (
-                    <button
-                      key={o.id}
-                      type="button"
-                      onClick={() => setSingle("budget_band", o.id)}
-                      className={cn(
-                        "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                        data.budget_band === o.id
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
-                      )}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">Alcohol</p>
+              <div className="flex flex-wrap gap-2">
+                {ALCOHOL_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSingle("alcohol_preference", data.alcohol_preference === o.id ? null : o.id)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.alcohol_preference === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">How far do you like to explore?</p>
+              <div className="flex flex-wrap gap-2">
+                {RADIUS_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSingle("radius_preference", data.radius_preference === o.id ? null : o.id)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.radius_preference === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">Stick to favorites or discover new spots?</p>
+              <div className="flex flex-wrap gap-2">
+                {EXPLORATION_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSingle("exploration_style", data.exploration_style === o.id ? null : o.id)}
+                    className={cn(
+                      "text-sm font-medium px-4 py-2 rounded-full",
+                      data.exploration_style === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
               </div>
             </div>
             <div className="pt-4 flex gap-2">
@@ -812,24 +774,18 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
               >
                 Next
               </button>
-              <button
-                type="button"
-                onClick={handleSkip}
-                className="px-4 py-3 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Skip for now
+              <button type="button" onClick={handleSkip} className="px-4 py-3 text-sm text-muted-foreground hover:text-foreground">
+                Skip
               </button>
             </div>
           </>
         )}
 
-        {step === 8 && (
+        {step === 6 && (
           <>
             <div>
               <h2 className="text-lg font-semibold">How did you hear about us?</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Helps us improve and reach more people like you.
-              </p>
+              <p className="text-sm text-muted-foreground mt-1">Helps us reach more people like you.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {ACQUISITION_OPTIONS.map((o) => (
@@ -838,10 +794,8 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                   type="button"
                   onClick={() => setSingle("acquisition_source", o.id)}
                   className={cn(
-                    "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                    data.acquisition_source === o.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                    "text-sm font-medium px-4 py-2 rounded-full",
+                    data.acquisition_source === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                   )}
                 >
                   {o.label}
@@ -853,7 +807,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                 type="button"
                 onClick={handleFinish}
                 disabled={saving}
-                className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors touch-manipulation"
+                className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {saving ? "Setting up…" : "See my picks"}
               </button>

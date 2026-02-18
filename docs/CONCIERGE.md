@@ -185,70 +185,9 @@ These can be collected in 1–2 optional onboarding taps or later in Settings.
 
 ## 5. Onboarding → Fields Mapping
 
-Onboarding must write into the same fields Concierge reads from.
+Onboarding must write into the same fields Concierge reads from: `home_city`, `home_neighborhood`, `preferred_neighborhoods`, `persona_type`, `preferred_days`, `preferred_time_blocks`, `interests`, `vibe_tags_preferred`, `budget_band`, `typical_group_type`, `exploration_style`, `weekly_outing_target`, `dietary_flags`, `alcohol_preference`, `acquisition_source`, `onboarding_completed_at`. Settings must edit these same fields.
 
-### Steps (target)
-
-1. **Location & city**
-   - Ask: City, neighborhood where you stay/live.
-   - Set:
-     - `home_city`
-     - `home_neighborhood`
-     - `preferred_neighborhoods = [home_neighborhood]` (initial default)
-
-2. **Persona**
-   - Ask: Local, nomad, or visiting?
-   - Set:
-     - `persona_type`
-
-3. **Weekday habits**
-   - Ask: Do you go out on weekdays? Which days/times?
-   - Set:
-     - `weekday_preferences`
-     - Update `preferred_days` (Mon–Fri)
-     - Update `preferred_time_blocks` (e.g. `evening`)
-
-4. **Weekend habits**
-   - Ask: What does your weekend look like (days, day vs night)?
-   - Set:
-     - `weekend_preferences`
-     - Update `preferred_days` (Sat–Sun)
-     - Update `preferred_time_blocks` (e.g. `afternoon`, `evening`)
-
-5. **Categories / interests**
-   - Ask: What are you into? (Food, drinks, cafes, culture, outdoors, nightlife, etc.)
-   - Set:
-     - `interests` (mapped to categories)
-
-6. **Vibes & budget**
-   - Ask: Vibes (cozy, lively, date night, solo-friendly, etc.) and rough budget.
-   - Set:
-     - `vibe_tags_preferred`
-     - `budget_band`
-     - Optionally `budget_min`, `budget_max`
-
-7. **Social context (optional)**
-   - Ask: Usually going out solo, with a partner, or with friends?
-   - Set:
-     - `typical_group_type`
-
-8. **Exploration & frequency (optional)**
-   - Ask: “Stick to favorites or discover new spots?” and “How often per week?”
-   - Set:
-     - `exploration_style`
-     - `weekly_outing_target`
-
-9. **Acquisition**
-   - Ask: Where did you find us?
-   - Set:
-     - `acquisition_source`
-
-10. Mark completion:
-    - Set `onboarding_completed_at`.
-
-Settings screens should **edit the same fields**, not introduce parallel preference structures.
-
-***
+**For the 7-step Onboarding v2 flow**, see [ROADMAP](ROADMAP.md) Phase 1.
 
 ## 6. Concierge vs Highlights
 
@@ -402,7 +341,37 @@ Underlying venue selection remains rule-based + Concierge scoring for transparen
 
 ## 9. Concierge Scoring (High-Level)
 
-Concierge re-scores venues using user + context + slot definition.
+### 9.0 Batch vs runtime (do not rerun scores on preference change)
+
+**Place scores are split into two layers:**
+
+1. **Batch, global (persona-agnostic)**
+   - `npm run compute:scores` writes `quality_score` to `venues`.
+   - Uses: popularity, rating, FSQ signals, AI tags, `is_featured`.
+   - Runs **only** after ingest or when the global quality model changes.
+   - Implemented in `scripts/compute-quality-scores.ts`; stored in `venues.quality_score`.
+
+2. **Runtime reranker (user-specific)**
+   - Applied **at request time** in the app/API.
+   - Pulls a candidate set (e.g. top N by `quality_score` + filters).
+   - Adjusts rank on the fly using:
+     - Vibe tag matches (e.g. +weight if `remote_work` and user cares)
+     - Price alignment vs user budget
+     - Neighborhood proximity vs preferred neighborhoods
+     - Persona (local/tourist/nomad) weights
+   - Implemented in `src/lib/concierge.ts` (`scorePlace`).
+
+**When to rerun batch scores:**
+
+- ✅ Ingest added or updated venues
+- ✅ Global quality model changed (new FSQ weight, new AI features)
+
+**When NOT to rerun batch scores:**
+
+- ❌ User changes persona, sliders, or preferences
+- ❌ Toggling filters in the UI
+
+Persona and preference changes are handled via **runtime reranking over static scores**, not by re-running the batch pipeline.
 
 ### 9.1 Inputs
 

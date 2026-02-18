@@ -34,17 +34,23 @@ export const UNIVERSAL_CATEGORIES: {
   { category: "kids_activities", displayName: "Kids Activities", searchTerm: "things to do with kids", categoryGroup: "other" },
   { category: "tours", displayName: "Tours", searchTerm: "tours", categoryGroup: "other" },
   { category: "waterfront", displayName: "Waterfront", searchTerm: "waterfront", categoryGroup: "other" },
+  { category: "art_gallery", displayName: "Art Gallery", searchTerm: "art gallery", categoryGroup: "museum" },
 ];
 
 /** City-specific category slugs → category_group. Single source of truth for seed + onboard. */
 const CITY_SPECIFIC_GROUPS: Record<string, "restaurant" | "bar" | "cafe" | "museum" | "other"> = {
   parrilla: "restaurant",
   heladeria: "restaurant",
+  pizzeria: "restaurant",
+  empanadas: "restaurant",
+  panaderia: "restaurant",
   cajun: "restaurant",
   po_boy: "restaurant",
   tango_bar: "bar",
   jazz_bar: "bar",
   fado_bar: "bar",
+  cerveceria: "bar",
+  dive_bar: "bar",
 };
 
 export function getCategoryGroup(slug: string): "restaurant" | "bar" | "cafe" | "museum" | "other" {

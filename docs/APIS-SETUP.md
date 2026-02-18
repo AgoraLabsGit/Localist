@@ -1,6 +1,22 @@
 # APIs: Setup & Compliance
 
-**Data sources breakdown:** See `docs/DATA-SOURCES.md` for Google vs Foursquare fields, gaps when FSQ is missing, and how the AI layer fills null data.
+---
+
+## What we get from Google vs Foursquare
+
+| Field | Google Text Search | Foursquare |
+|-------|--------------------|------------|
+| place_id, name, lat/lng | ✓ | — |
+| types / primaryType | ✓ (google_types) | — |
+| rating, user_ratings_total | Gating only (not stored) | ✓ (display) |
+| formatted_address | ✓ (not stored when no FSQ) | ✓ |
+| opening_hours, phone, website | — | ✓ |
+| photos | — | ✓ (via fetch-venue-photos) |
+| short_description | — | ✓ |
+| avg_expected_price | — | ✓ |
+| fsq_categories | — | ✓ |
+
+**When there is no FSQ match:** address, hours, phone, website, photo_urls, short_description, avg_expected_price are null. AI batch job can fill short_description, vibe_tags, optionally avg_expected_price — see [AI-PIPELINE](AI-PIPELINE.md).
 
 ---
 

@@ -22,14 +22,20 @@ const DISCOVERY_MAP: Record<string, { google_included_type: string; text_query_k
   brunch: { google_included_type: "restaurant" },
   parrilla: { google_included_type: "restaurant", text_query_keywords: "parrilla,asado" },
   heladeria: { google_included_type: "ice_cream_shop" },
+  pizzeria: { google_included_type: "restaurant", text_query_keywords: "pizzeria,pizza" },
+  empanadas: { google_included_type: "restaurant", text_query_keywords: "empanadas" },
+  panaderia: { google_included_type: "bakery" },
   museum: { google_included_type: "museum" },
   park: { google_included_type: "park" },
   night_club: { google_included_type: "night_club" },
   theater: { google_included_type: "movie_theater" },
   bookstore: { google_included_type: "book_store" },
+  art_gallery: { google_included_type: "art_gallery" },
   tango_bar: { google_included_type: "bar", text_query_keywords: "milonga,tango" },
   rooftop: { google_included_type: "bar", text_query_keywords: "rooftop" },
   music_venue: { google_included_type: "night_club", text_query_keywords: "live music" },
+  cerveceria: { google_included_type: "bar", text_query_keywords: "cerveceria,craft beer" },
+  dive_bar: { google_included_type: "bar", text_query_keywords: "dive bar" },
 };
 
 const supabase = createClient(

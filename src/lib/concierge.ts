@@ -73,15 +73,21 @@ const WEEKEND_PREF_TO_CATEGORIES: Record<string, string[]> = {
 const CATEGORY_GROUP: Record<string, string> = {
   parrilla: "food_drink",
   heladeria: "food_drink",
+  pizzeria: "food_drink",
+  empanadas: "food_drink",
+  panaderia: "food_drink",
   brunch: "food_brunch",
   cafe: "cafe",
   cocktail_bar: "nightlife",
   rooftop: "nightlife",
   tango_bar: "nightlife",
   wine_bar: "nightlife",
+  cerveceria: "nightlife",
+  dive_bar: "nightlife",
   jazz_bar: "nightlife",
   museum: "culture",
   bookstore: "culture",
+  art_gallery: "culture",
   park: "parks_outdoors",
 };
 

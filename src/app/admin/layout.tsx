@@ -30,6 +30,9 @@ export default async function AdminLayout({
             <Link href="/admin/settings" className="text-muted-foreground hover:text-foreground">
               Settings
             </Link>
+            <Link href="/admin/usage" className="text-muted-foreground hover:text-foreground">
+              Usage
+            </Link>
             <Link href="/" className="text-muted-foreground hover:text-foreground">
               App
             </Link>
