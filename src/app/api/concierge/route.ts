@@ -2,10 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getDefaultCityNameFromDb } from "@/lib/cities-db";
 import { NextResponse } from "next/server";
 import {
-  getTimeContext,
+  resolveTimeContext,
   buildConciergeSections,
   type ConciergeFilters,
-  type TimeContext,
+  type TimeFilter,
 } from "@/lib/concierge";
 import type { PlaceForScoring } from "@/lib/concierge";
 import type { Highlight } from "@/types/database";
@@ -22,26 +22,27 @@ export async function GET(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const timeOverride = searchParams.get("timeContext") as TimeContext | null;
+  const timeFilter = (searchParams.get("timeContext") as TimeFilter) ?? "today";
   const radius = searchParams.get("radius") as "near" | "city" | null;
   const typeGroup = searchParams.get("typeGroup") as "food_drink" | "culture" | "outdoors" | null;
+  const favoriteNeighborhoodsOnly = searchParams.get("favoriteNeighborhoodsOnly") === "1";
 
-  const filterOverrides: ConciergeFilters = {};
-  if (timeOverride && ["weekday", "weekend", "sunday"].includes(timeOverride)) {
-    filterOverrides.timeContextOverride = timeOverride;
-  }
-  if (radius) filterOverrides.radius = radius;
-  if (typeGroup) filterOverrides.typeGroup = typeGroup;
-
-  const timeContext = filterOverrides.timeContextOverride ?? getTimeContext(new Date());
+  const now = new Date();
+  const filterOverrides: ConciergeFilters = {
+    timeFilter: ["today", "tonight", "this_week", "this_weekend"].includes(timeFilter) ? timeFilter : "today",
+    radius: radius ?? undefined,
+    typeGroup: typeGroup ?? undefined,
+    favoriteNeighborhoodsOnly,
+  };
+  const timeContext = resolveTimeContext(filterOverrides.timeFilter!, now);
   const defaultCity = await getDefaultCityNameFromDb();
 
-  const [{ data: userRow }, { data: prefs }, highlightsRes, { data: savedData }] = await Promise.all([
+  const [{ data: userRow }, { data: prefs }, highlightsRes, { data: savedData }, { data: placeStateData }] = await Promise.all([
     supabase.from("users").select("home_city").eq("id", user.id).single(),
     supabase
       .from("user_preferences")
       .select(
-        "primary_neighborhood, weekday_preferences, weekend_preferences, vibe_tags_preferred, interests"
+        "home_neighborhood, preferred_neighborhoods, weekday_preferences, weekend_preferences, vibe_tags_preferred, interests, persona_type, budget_band"
       )
       .eq("user_id", user.id)
       .single(),
@@ -59,14 +60,23 @@ export async function GET(req: Request) {
           .order("title")
       ),
     supabase
-      .from("saved_items")
-      .select("target_id")
+      .from("user_place_state")
+      .select("place_id")
       .eq("user_id", user.id)
-      .eq("target_type", "highlight"),
+      .eq("is_saved", true),
+    supabase
+      .from("user_place_state")
+      .select("place_id, rating")
+      .eq("user_id", user.id),
   ]);
 
   const homeCity = (userRow?.home_city as string) ?? defaultCity;
   const rawHighlights = highlightsRes && !highlightsRes.error ? (highlightsRes.data ?? []) : [];
+  const ratingsByHighlightId = new Map<string, number>();
+  for (const row of placeStateData ?? []) {
+    const r = row as { place_id: string; rating: number | null };
+    if (r.rating != null) ratingsByHighlightId.set(r.place_id, r.rating);
+  }
   const highlights = [...rawHighlights].sort((a, b) => {
     const va = Array.isArray(a.venue) ? a.venue[0] : a.venue;
     const vb = Array.isArray(b.venue) ? b.venue[0] : b.venue;
@@ -75,7 +85,7 @@ export async function GET(req: Request) {
     if (sa !== sb) return sb - sa;
     return (a.title ?? "").localeCompare(b.title ?? "");
   });
-  const savedIds = new Set((savedData ?? []).map((s: { target_id: string }) => s.target_id));
+  const savedIds = new Set((savedData ?? []).map((s: { place_id: string }) => s.place_id));
 
   const byVenue = new Map<
     string,
@@ -104,19 +114,31 @@ export async function GET(req: Request) {
     saved: v.highlightIds.some((id) => savedIds.has(id)),
   }));
 
+  const preferredNeighborhoods = (prefs?.preferred_neighborhoods as string[]) ?? [];
   const userPrefs = {
-    primary_neighborhood: (prefs?.primary_neighborhood as string) ?? null,
+    home_neighborhood: (prefs?.home_neighborhood as string) ?? preferredNeighborhoods[0] ?? null,
+    preferred_neighborhoods: preferredNeighborhoods,
     weekday_preferences: (prefs?.weekday_preferences as string[]) ?? [],
     weekend_preferences: (prefs?.weekend_preferences as string[]) ?? [],
     vibe_tags_preferred: (prefs?.vibe_tags_preferred as string[]) ?? [],
     interests: (prefs?.interests as string[]) ?? [],
+    persona_type: (prefs?.persona_type as "local" | "nomad" | "tourist") ?? null,
+    budget_band: (prefs?.budget_band as "cheap" | "mid" | "splurge") ?? null,
   };
 
+  const filteredPlaces = filterOverrides.favoriteNeighborhoodsOnly && preferredNeighborhoods.length > 0
+    ? places.filter((p) => {
+        const n = (p.primary.neighborhood ?? "").toLowerCase().trim();
+        return preferredNeighborhoods.some((pn) => pn.toLowerCase().trim() === n);
+      })
+    : places;
+
   const result = buildConciergeSections(
-    places,
+    filteredPlaces,
     userPrefs,
     timeContext,
     savedIds,
+    ratingsByHighlightId,
     filterOverrides
   );
 

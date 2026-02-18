@@ -21,10 +21,10 @@ export default async function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm border-b">
+    <main className="min-h-screen bg-app">
+      <header className="sticky top-0 z-50 bg-app border-b border-[rgba(148,163,184,0.25)]">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-primary">Localist</h1>
+          <h1 className="text-xl font-logo text-foreground">Localist</h1>
           <SkipOnboardingButton />
         </div>
       </header>

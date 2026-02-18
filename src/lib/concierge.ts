@@ -3,7 +3,11 @@
  */
 import type { Highlight } from "@/types/database";
 
+/** Internal: derived from current date */
 export type TimeContext = "weekday" | "weekend" | "sunday";
+
+/** User-facing filter: Today, Tonight, This week, This weekend (CONCIERGE §6) */
+export type TimeFilter = "today" | "tonight" | "this_week" | "this_weekend";
 
 export function getTimeContext(now: Date): TimeContext {
   const d = now.getDay(); // 0=Sun..6=Sat
@@ -12,18 +16,35 @@ export function getTimeContext(now: Date): TimeContext {
   return "weekday";
 }
 
+/** Resolve user filter to internal context. "today" uses current day; others are explicit. */
+export function resolveTimeContext(filter: TimeFilter, now: Date): TimeContext {
+  if (filter === "today") return getTimeContext(now);
+  if (filter === "tonight") return getTimeContext(now); // tonight reuses day but sections focus evening
+  if (filter === "this_week") return getTimeContext(now);
+  if (filter === "this_weekend") {
+    const d = now.getDay();
+    return d === 0 ? "sunday" : "weekend";
+  }
+  return getTimeContext(now);
+}
+
 export interface ConciergeFilters {
   timeContextOverride?: TimeContext;
+  timeFilter?: TimeFilter;
   radius?: "near" | "city";
   typeGroup?: "food_drink" | "culture" | "outdoors";
+  favoriteNeighborhoodsOnly?: boolean;
 }
 
 export interface UserPrefs {
-  primary_neighborhood: string | null;
+  home_neighborhood: string | null;
+  preferred_neighborhoods?: string[];
   weekday_preferences: string[];
   weekend_preferences: string[];
   vibe_tags_preferred: string[];
   interests: string[];
+  persona_type?: "local" | "nomad" | "tourist" | null;
+  budget_band?: "cheap" | "mid" | "splurge" | null;
 }
 
 /** Map onboarding pref IDs to category slugs for scoring */
@@ -61,6 +82,7 @@ const CATEGORY_GROUP: Record<string, string> = {
   jazz_bar: "nightlife",
   museum: "culture",
   bookstore: "culture",
+  park: "parks_outdoors",
 };
 
 function getCategoryGroup(category: string): string {
@@ -100,11 +122,25 @@ export function isNearbyNeighborhood(
   return nearby?.some((n) => n.toLowerCase() === placeNeighborhood.toLowerCase()) ?? false;
 }
 
+/** Home + adjacent neighborhoods for Area filter "Near my neighborhood". */
+export function getHomeAndAdjacentNeighborhoods(home: string | null): string[] {
+  if (!home?.trim()) return [];
+  const adj = NEARBY_NEIGHBORHOODS[home] ?? [];
+  return [home, ...adj];
+}
+
 export interface PlaceForScoring {
   primary: Highlight;
   categories: string[];
   highlightIds: string[];
   saved?: boolean;
+}
+
+/** Affinity profile from saved + high-rated places for f_behavioral_affinity */
+export interface AffinityProfile {
+  categories: Set<string>;
+  neighborhoods: Set<string>;
+  vibeTags: Set<string>;
 }
 
 function getVenueQualityScore(primary: { venue?: { quality_score?: number | null } | { quality_score?: number | null }[] | null }): number {
@@ -114,22 +150,75 @@ function getVenueQualityScore(primary: { venue?: { quality_score?: number | null
   return q != null && q >= 0 ? q : 0;
 }
 
+/** Budget band → approximate price range (USD) for f_budget_match */
+const BUDGET_BAND_PRICE: Record<string, { min: number; max: number; ideal: number }> = {
+  cheap: { min: 0, max: 15, ideal: 10 },
+  mid: { min: 10, max: 40, ideal: 25 },
+  splurge: { min: 30, max: 200, ideal: 80 },
+};
+
+function fBudgetMatch(budgetBand: string | null | undefined, venuePrice: number | null): number {
+  if (!budgetBand) return 0;
+  const band = BUDGET_BAND_PRICE[budgetBand];
+  if (!band || venuePrice == null) return 0;
+  if (venuePrice >= band.min && venuePrice <= band.max) return 15;
+  const dist = Math.min(Math.abs(venuePrice - band.ideal), 50);
+  return Math.max(0, 15 - dist / 5);
+}
+
+function buildAffinityProfile(
+  places: PlaceForScoring[],
+  savedIds: Set<string>,
+  ratingsByHighlightId: Map<string, number>
+): AffinityProfile {
+  const categories = new Set<string>();
+  const neighborhoods = new Set<string>();
+  const vibeTags = new Set<string>();
+  for (const p of places) {
+    const isSaved = p.highlightIds.some((id) => savedIds.has(id));
+    const ratedId = p.highlightIds.find((id) => ratingsByHighlightId.has(id));
+    const rating = ratedId != null ? ratingsByHighlightId.get(ratedId) : undefined;
+    if (isSaved || (rating != null && rating >= 4)) {
+      p.categories.forEach((c) => categories.add(c));
+      if (p.primary.neighborhood) neighborhoods.add(p.primary.neighborhood.toLowerCase());
+      for (const t of Array.isArray(p.primary.vibe_tags) ? (p.primary.vibe_tags as string[]) : []) {
+        vibeTags.add(String(t).toLowerCase());
+      }
+    }
+  }
+  return { categories, neighborhoods, vibeTags };
+}
+
 export function scorePlace(
   place: PlaceForScoring,
   user: UserPrefs,
   timeContext: TimeContext,
-  filterOverrides: ConciergeFilters = {}
+  filterOverrides: ConciergeFilters = {},
+  ratingsByHighlightId?: Map<string, number>,
+  affinityProfile?: AffinityProfile
 ): number {
   let score = 0;
-  const { primary, categories } = place;
+  const { primary, categories, highlightIds } = place;
   const category = primary.category;
   const categoryGroup = getCategoryGroup(category);
   const neighborhood = primary.neighborhood ?? "";
   const vibeTags = Array.isArray(primary.vibe_tags) ? (primary.vibe_tags as string[]) : [];
+  const venuePrice = primary.avg_expected_price ?? null;
+
+  // User rated this place low → downweight; high → re-surface favorites
+  if (ratingsByHighlightId?.size && highlightIds?.length) {
+    const ratedId = highlightIds.find((id) => ratingsByHighlightId.has(id));
+    const userRating = ratedId != null ? ratingsByHighlightId.get(ratedId) : undefined;
+    if (userRating != null && userRating <= 2) score -= 30;
+    if (userRating != null && userRating >= 4) score += 10;
+  }
 
   // Quality score (0-100) adds up to 20 points
   const qualityScore = getVenueQualityScore(primary);
   score += (qualityScore / 100) * 20;
+
+  // Budget match
+  score += fBudgetMatch(user.budget_band, venuePrice);
 
   const prefs =
     timeContext === "weekday"
@@ -141,15 +230,35 @@ export function scorePlace(
   if (prefCategories.size > 0 && categories.some((c) => prefCategories.has(c))) score += 30;
   if (user.interests?.length && user.interests.some((i) => categories.includes(i))) score += 20;
 
-  if (neighborhood && user.primary_neighborhood) {
-    if (neighborhood.toLowerCase() === user.primary_neighborhood.toLowerCase()) score += 25;
-    else if (isNearbyNeighborhood(neighborhood, user.primary_neighborhood)) score += 10;
+  const favs = user.preferred_neighborhoods ?? (user.home_neighborhood ? [user.home_neighborhood] : []);
+  if (neighborhood && favs.length > 0) {
+    const nLower = neighborhood.toLowerCase();
+    const exactMatch = favs.some((f) => f.toLowerCase() === nLower);
+    const nearbyMatch = user.home_neighborhood && isNearbyNeighborhood(neighborhood, user.home_neighborhood);
+    let locationBonus = 0;
+    if (exactMatch) locationBonus = 25;
+    else if (nearbyMatch) locationBonus = 10;
+    // Persona-aware: local prefers near, tourist explores city-wide
+    const persona = user.persona_type ?? "nomad";
+    if (persona === "local" && (exactMatch || nearbyMatch)) locationBonus = Math.round(locationBonus * 1.2);
+    if (persona === "tourist" && !exactMatch && !nearbyMatch) locationBonus = 5; // less penalty for far
+    score += locationBonus;
   }
 
   const vibeOverlap = (user.vibe_tags_preferred ?? []).filter((v) =>
     vibeTags.some((t) => String(t).toLowerCase() === String(v).toLowerCase())
   ).length;
   score += vibeOverlap * 5;
+
+  // Behavioral affinity: boost venues similar to saved/high-rated
+  if (affinityProfile) {
+    const catOverlap = categories.some((c) => affinityProfile.categories.has(c));
+    const hoodMatch = neighborhood && affinityProfile.neighborhoods.has(neighborhood.toLowerCase());
+    const vibeMatch = vibeTags.some((t) => affinityProfile.vibeTags.has(String(t).toLowerCase()));
+    if (catOverlap) score += 12;
+    if (hoodMatch) score += 8;
+    if (vibeMatch) score += 5;
+  }
 
   if (timeContext === "sunday") {
     if (categoryGroup === "food_brunch" || category === "brunch") score += 15;
@@ -159,12 +268,14 @@ export function scorePlace(
     if (categoryGroup === "nightlife") score += 15;
   }
 
-  if (filterOverrides.radius === "near" && user.primary_neighborhood) {
-    if (neighborhood.toLowerCase() === user.primary_neighborhood.toLowerCase()) score += 15;
-    else if (isNearbyNeighborhood(neighborhood, user.primary_neighborhood)) score += 8;
+  if (filterOverrides.radius === "near" && user.home_neighborhood) {
+    if (neighborhood.toLowerCase() === user.home_neighborhood.toLowerCase()) score += 15;
+    else if (isNearbyNeighborhood(neighborhood, user.home_neighborhood)) score += 8;
   }
   if (filterOverrides.radius === "city") {
-    score -= 5;
+    // Tourist persona: less penalty for city-wide
+    const persona = user.persona_type ?? "nomad";
+    score -= persona === "tourist" ? 2 : 5;
   }
   if (filterOverrides.typeGroup) {
     const g = filterOverrides.typeGroup;
@@ -186,33 +297,50 @@ function buildSections(
   user: UserPrefs,
   timeContext: TimeContext,
   savedIds: Set<string>,
+  ratingsByHighlightId: Map<string, number>,
+  affinityProfile: AffinityProfile,
   filterOverrides: ConciergeFilters
 ): ConciergeSection[] {
   const scored = places.map((p) => ({
     place: p,
-    score: scorePlace(p, user, timeContext, filterOverrides),
+    score: scorePlace(p, user, timeContext, filterOverrides, ratingsByHighlightId, affinityProfile),
   }));
   scored.sort((a, b) => b.score - a.score);
 
-  const primaryNeighborhood = user.primary_neighborhood ?? "";
+  const CANDIDATES_PER_SLOT = 8; // Support "Not this one" cycling
+  const homeNeighborhood = user.home_neighborhood ?? "";
   const isNear = (n: string | null) =>
-    n && primaryNeighborhood && (n.toLowerCase() === primaryNeighborhood.toLowerCase() || isNearbyNeighborhood(n, primaryNeighborhood));
+    n && homeNeighborhood && (n.toLowerCase() === homeNeighborhood.toLowerCase() || isNearbyNeighborhood(n, homeNeighborhood));
+
+  const isTonight = filterOverrides.timeFilter === "tonight";
 
   if (timeContext === "weekday") {
     const nearHome = scored
-      .filter(({ place }) => primaryNeighborhood && place.primary.neighborhood?.toLowerCase() === primaryNeighborhood.toLowerCase())
-      .slice(0, 5)
+      .filter(({ place }) => homeNeighborhood && place.primary.neighborhood?.toLowerCase() === homeNeighborhood.toLowerCase())
+      .slice(0, CANDIDATES_PER_SLOT)
       .map((s) => s.place);
     const nightlife = scored
       .filter(({ place }) => getCategoryGroup(place.primary.category) === "nightlife")
-      .filter(({ place }) => !primaryNeighborhood || isNear(place.primary.neighborhood))
-      .slice(0, 5)
+      .filter(({ place }) => !homeNeighborhood || isNear(place.primary.neighborhood))
+      .slice(0, CANDIDATES_PER_SLOT)
+      .map((s) => s.place);
+    const dinner = scored
+      .filter(({ place }) => getCategoryGroup(place.primary.category) === "food_drink" || getCategoryGroup(place.primary.category) === "food_brunch")
+      .filter(({ place }) => !homeNeighborhood || isNear(place.primary.neighborhood))
+      .slice(0, CANDIDATES_PER_SLOT)
       .map((s) => s.place);
     const cafe = scored
       .filter(({ place }) => place.primary.category === "cafe" || getCategoryGroup(place.primary.category) === "cafe")
       .filter(({ place }) => !place.highlightIds.some((id) => savedIds.has(id)))
-      .slice(0, 5)
+      .slice(0, CANDIDATES_PER_SLOT)
       .map((s) => s.place);
+    // Tonight: dinner + drinks focus; Today: near home + drinks + cafe
+    if (isTonight) {
+      return [
+        { id: "tonight_dinner", title: "Dinner tonight", items: dinner },
+        { id: "tonight_drinks", title: "After dinner", items: nightlife },
+      ].filter((s) => s.items.length > 0);
+    }
     return [
       { id: "near_home_today", title: "Near you today", items: nearHome },
       { id: "after_work_drinks", title: "After-work drinks", items: nightlife },
@@ -221,11 +349,25 @@ function buildSections(
   }
 
   if (timeContext === "weekend") {
-    const shortlist = scored.slice(0, 8).map((s) => s.place);
+    const nightlife = scored
+      .filter(({ place }) => getCategoryGroup(place.primary.category) === "nightlife")
+      .slice(0, CANDIDATES_PER_SLOT)
+      .map((s) => s.place);
+    const dinner = scored
+      .filter(({ place }) => getCategoryGroup(place.primary.category) === "food_drink" || getCategoryGroup(place.primary.category) === "food_brunch")
+      .slice(0, CANDIDATES_PER_SLOT)
+      .map((s) => s.place);
+    if (isTonight) {
+      return [
+        { id: "weekend_tonight_dinner", title: "Dinner tonight", items: dinner },
+        { id: "weekend_tonight_nightlife", title: "Bars & nightlife", items: nightlife },
+      ].filter((s) => s.items.length > 0);
+    }
+    const shortlist = scored.slice(0, CANDIDATES_PER_SLOT).map((s) => s.place);
     const otherBarrios: PlaceForScoring[] = [];
     const seenHoods = new Map<string, number>();
     for (const { place } of scored) {
-      if (place.primary.neighborhood?.toLowerCase() === primaryNeighborhood.toLowerCase()) continue;
+      if (place.primary.neighborhood?.toLowerCase() === homeNeighborhood.toLowerCase()) continue;
       const hood = place.primary.neighborhood ?? "";
       if (!hood || otherBarrios.length >= 4) break;
       const count = seenHoods.get(hood) ?? 0;
@@ -245,16 +387,25 @@ function buildSections(
       .filter(
         (s) => s.place.primary.category === "brunch" || s.place.primary.category === "cafe" || getCategoryGroup(s.place.primary.category) === "food_brunch"
       )
-      .slice(0, 5)
+      .slice(0, CANDIDATES_PER_SLOT)
       .map((s) => s.place);
     const parks = scored
       .filter((s) => getCategoryGroup(s.place.primary.category) === "parks_outdoors" || s.place.primary.category === "cafe")
-      .slice(0, 5)
+      .slice(0, CANDIDATES_PER_SLOT)
       .map((s) => s.place);
     const culture = scored
       .filter((s) => getCategoryGroup(s.place.primary.category) === "culture")
-      .slice(0, 5)
+      .slice(0, CANDIDATES_PER_SLOT)
       .map((s) => s.place);
+    if (isTonight) {
+      const dinner = scored
+        .filter((s) => getCategoryGroup(s.place.primary.category) === "food_drink" || getCategoryGroup(s.place.primary.category) === "food_brunch")
+        .slice(0, CANDIDATES_PER_SLOT)
+        .map((s) => s.place);
+      return [
+        { id: "sunday_tonight_dinner", title: "Low-key dinner", items: dinner },
+      ].filter((s) => s.items.length > 0);
+    }
     return [
       { id: "sunday_brunch_and_cafes", title: "Sunday brunch & cafés", items: brunch },
       { id: "sunday_parks_and_walks", title: "Parks & walks", items: parks },
@@ -270,8 +421,14 @@ export function buildConciergeSections(
   user: UserPrefs,
   timeContext: TimeContext,
   savedIds: Set<string>,
+  ratingsByHighlightId: Map<string, number> = new Map(),
   filterOverrides: ConciergeFilters = {}
-): { time_context: TimeContext; sections: ConciergeSection[] } {
-  const sections = buildSections(places, user, timeContext, savedIds, filterOverrides);
-  return { time_context: timeContext, sections };
+): { time_context: TimeContext; time_filter: TimeFilter; sections: ConciergeSection[] } {
+  const affinityProfile = buildAffinityProfile(places, savedIds, ratingsByHighlightId);
+  const sections = buildSections(places, user, timeContext, savedIds, ratingsByHighlightId, affinityProfile, filterOverrides);
+  return {
+    time_context: timeContext,
+    time_filter: filterOverrides.timeFilter ?? "today",
+    sections,
+  };
 }

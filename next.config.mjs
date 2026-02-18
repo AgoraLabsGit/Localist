@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // PWA config will go here later
+  experimental: {
+    // Reduces webpack cache "Serializing big strings" warning (icon/barrel packages)
+    optimizePackageImports: ["lucide-react"],
+  },
 };
 
 export default nextConfig;

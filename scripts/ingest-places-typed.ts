@@ -310,13 +310,27 @@ async function searchFoursquarePlace(name: string, lat: number, lng: number): Pr
   if (results.length === 0) return null;
 
   const nameLower = name.toLowerCase();
-  const match = results.find(
-    (r: { name?: string }) =>
-      r.name &&
-      (r.name.toLowerCase().includes(nameLower) || nameLower.includes(r.name.toLowerCase()))
-  );
-  const best = match ?? results[0];
-  return best.fsq_place_id ?? best.fsq_id ?? null;
+  const significantTokens = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/['"]/g, "")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !/^(la|el|los|las|de|del|y|&|the|and|of)$/.test(w));
+
+  const queryTokens = new Set(significantTokens(name));
+  const match = results.find((r: { name?: string }) => {
+    if (!r.name) return false;
+    const rn = r.name.toLowerCase();
+    // Substring match (existing logic)
+    if (rn.includes(nameLower) || nameLower.includes(rn)) return true;
+    // Token overlap: at least 1 significant word in common (catches "La Baldosa" vs "La Baldosa Milonga")
+    const rt = significantTokens(r.name);
+    if (rt.some((t) => queryTokens.has(t))) return true;
+    return false;
+  });
+  // Never fallback to results[0] when no match — avoids wrong venue (e.g. fish store for La Baldosa Milonga)
+  if (!match) return null;
+  return match.fsq_place_id ?? match.fsq_id ?? null;
 }
 
 /** Foursquare Place Details — includes categories for fsq_categories. */

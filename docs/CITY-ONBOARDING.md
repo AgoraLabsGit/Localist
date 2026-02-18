@@ -116,6 +116,8 @@ The Area filter options come from:
 1. `city_neighborhoods` for the user's city
 2. Union with distinct `neighborhood` values from highlights
 
+User preferences: `home_neighborhood` = where they live (used for Near me fallback, Concierge); `preferred_neighborhoods` = favorite areas to explore (multi-select, powers Area filter).
+
 So: run `sync:neighborhoods [city-slug]` **before** ingest to populate all neighborhoods in the filter. Ingestion can still resolve neighborhoods via address/geocode even if they're not in `city_neighborhoods`; those will appear in the filter once we have highlights there.
 
 ---

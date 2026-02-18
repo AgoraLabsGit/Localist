@@ -12,19 +12,23 @@ export async function POST(req: Request) {
   const interests = Array.isArray(data.interests) && data.interests.length > 0
     ? data.interests
     : ["cafe", "parrilla", "cocktail_bar"];
-  const preferred_neighborhoods = Array.isArray(data.preferred_neighborhoods)
-    ? data.preferred_neighborhoods
-    : data.primary_neighborhood
-      ? [data.primary_neighborhood]
-      : [];
+  const preferred_neighborhoods =
+    Array.isArray(data.preferred_neighborhoods) && data.preferred_neighborhoods.length > 0
+      ? data.preferred_neighborhoods
+      : data.primary_neighborhood_freeform
+        ? [data.primary_neighborhood_freeform]
+        : data.home_neighborhood
+          ? [data.home_neighborhood]
+          : [];
 
   const { getDefaultCityNameFromDb } = await import("@/lib/cities-db");
   const defaultCity = await getDefaultCityNameFromDb();
   const rawCity = (data.home_city ?? defaultCity).trim() || defaultCity;
   const homeCity = (await validateCityFromDb(rawCity)) ?? defaultCity;
+  const home_neighborhood = data.home_neighborhood ?? null;
   const userCities = [{
     city: homeCity,
-    primary_neighborhood: data.primary_neighborhood ?? null,
+    primary_neighborhood: home_neighborhood ?? preferred_neighborhoods[0] ?? null,
     primary_neighborhood_freeform: data.primary_neighborhood_freeform ?? null,
     is_home: true,
   }];
@@ -33,7 +37,7 @@ export async function POST(req: Request) {
   const { error } = await supabase.from("user_preferences").upsert(
     {
       user_id: user.id,
-      primary_neighborhood: data.primary_neighborhood ?? null,
+      home_neighborhood,
       primary_neighborhood_freeform: data.primary_neighborhood_freeform ?? null,
       user_cities: userCities,
       preferred_neighborhoods,

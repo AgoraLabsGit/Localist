@@ -17,7 +17,7 @@ export default async function AdminLayout({
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/admin" className="font-semibold text-primary">
+          <Link href="/admin" className="font-logo text-primary">
             Localist Admin
           </Link>
           <nav className="flex items-center gap-4 text-sm">

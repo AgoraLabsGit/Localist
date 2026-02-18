@@ -35,13 +35,13 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 bg-background">
+      <div className="min-h-screen flex items-center justify-center px-4 bg-app">
         <div className="w-full max-w-sm space-y-6 text-center">
           <h1 className="text-2xl font-bold text-foreground">Password updated</h1>
           <p className="text-muted-foreground">You can now sign in with your new password.</p>
           <Link
             href="/auth/login"
-            className="inline-block py-2.5 px-4 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90"
+            className="inline-block py-2.5 px-4 rounded-[14px] bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors touch-manipulation"
           >
             Sign in
           </Link>
@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-background">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-app">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">Set new password</h1>
@@ -69,7 +69,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-3 py-2 rounded-lg border border-input bg-app text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="At least 6 characters"
             />
           </div>
@@ -84,7 +84,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-3 py-2 rounded-lg border border-input bg-app text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="Repeat password"
             />
           </div>
@@ -92,7 +92,7 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50"
+            className="w-full py-2.5 rounded-[14px] bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors touch-manipulation"
           >
             {loading ? "Updating…" : "Update password"}
           </button>

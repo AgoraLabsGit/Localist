@@ -61,9 +61,9 @@ AI layer spec: `docs/AI-PIPELINE.md`
 
 ### Track B: UI/UX
 
-1. Search bar on main pages
-2. Place detail scroll on mobile (pop-up/drawer)
-3. Saved tab: category/neighborhood filters
+1. ~~Search bar on main pages~~ ✓
+2. ~~Place detail scroll on mobile (pop-up/drawer)~~ ✓
+3. ~~Saved tab: category/neighborhood filters~~ ✓
 4. PWA: `manifest.json`, icons, install test
 
 ### Track C: Phase 2 Content
@@ -75,6 +75,43 @@ AI layer spec: `docs/AI-PIPELINE.md`
 
 - Foursquare Tips (detail view; see `CONCIERGE.md`)
 - Events table
+
+---
+
+## Concierge Overhaul
+
+**Spec:** `docs/CONCIERGE.md` — personal planner on top of Highlights; time- and location-aware picks.
+
+### Phase C1 — Foundation (Data & Preferences)
+
+1. **user_preferences fields** ✓ — Migration 032: `typical_group_type`, `dietary_flags`, `alcohol_preference`, `exploration_style`, `weekly_outing_target`
+2. **Concierge API** ✓ — Reads `persona_type`, `budget_band`; uses `user_place_state` for saved + ratings
+3. **Ratings + behavioral affinity** ✓ — Load ratings; `buildAffinityProfile` + `f_behavioral_affinity` in scoring
+
+### Phase C2 — Scoring Overhaul
+
+1. **Full scoring formula** — Partial: ✓ `f_distance`, `f_budget_match`, `f_behavioral_affinity`; ⬜ `f_exploration_bonus`
+2. **Time match** — ⬜ `f_time_match` using `preferred_time_blocks`, venue opening hours (when available)
+
+### Phase C3 — Slots & Sets
+
+1. **Slot types** ✓ — Weekday: dinner + drinks (tonight); near home, drinks, cafe (today)
+2. **Set types** — ⬜ Weekend mini-itineraries: "Sunday Chill" (park + cafe + museum)
+3. **Candidate fetching** ✓ — 8 candidates per slot; client cycles on "Not this one"
+4. **"Not this one"** ✓ — UI + slot index state; next candidate from list
+
+### Phase C4 — UI/UX
+
+1. **Slot layout** ✓ — One card per slot; Save / "Not this one" buttons
+2. **Time filters** ✓ — Today, Tonight, This week, This weekend (CONCIERGE §6)
+3. **Weekend sets** — ⬜ Bundle cards (park + cafe + museum) with set title
+4. **Feedback loop** — ⬜ Reject → avoid re-showing venue for session/duration
+
+### Concierge Principles (from spec)
+
+- Same venues/highlights as Highlights; differ only in selection, scoring, grouping
+- No per-request external API or AI calls; all data from Supabase
+- Onboarding & Settings write to same `user_preferences` fields Concierge reads
 
 ---
 

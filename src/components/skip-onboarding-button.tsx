@@ -13,7 +13,7 @@ export function SkipOnboardingButton() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           home_city: null,
-          primary_neighborhood: null,
+          home_neighborhood: null,
           primary_neighborhood_freeform: null,
           preferred_neighborhoods: [],
           persona_type: null,

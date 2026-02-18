@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { inter, spaceGrotesk, righteous } from "@/lib/fonts";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Localist — Buenos Aires",
@@ -13,7 +11,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#7c3aed",
+  themeColor: "#020617",
 };
 
 export default function RootLayout({
@@ -22,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${righteous.variable}`}>
+      <body className="font-body">{children}</body>
     </html>
   );
 }

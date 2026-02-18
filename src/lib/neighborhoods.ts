@@ -12,20 +12,15 @@ export function normalizeNeighborhoodKey(name: string): string {
     .trim();
 }
 
-/** Title case for display: "LINIERS" → "Liniers", "PARQUE PATRICIOS" → "Parque Patricios". Uses char iteration to avoid \b\w treating accented chars as word boundaries. */
+/** Title case for display: "LINIERS" → "Liniers", "LANÚS OESTE" → "Lanús Oeste". Word-based, locale-aware for proper handling of ñ, á, etc. */
 export function toTitleCase(name: string): string {
-  let result = "";
-  let startOfWord = true;
-  for (const c of name.toLowerCase()) {
-    if (/\s/.test(c)) {
-      startOfWord = true;
-      result += c;
-    } else {
-      result += startOfWord ? c.toUpperCase() : c;
-      startOfWord = false;
-    }
-  }
-  return result;
+  if (!name?.trim()) return name ?? "";
+  return name
+    .trim()
+    .toLocaleLowerCase("es")
+    .split(/\s+/)
+    .map((word) => (word.length > 0 ? word[0].toLocaleUpperCase("es") + word.slice(1) : ""))
+    .join(" ");
 }
 
 /** Dedupe by normalized key and apply title case for display. */

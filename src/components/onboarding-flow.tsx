@@ -2,7 +2,7 @@
 
 /**
  * Multi-step onboarding flow per docs/CONCIERGE.md
- * Screens 0–7: City → Neighborhood → Persona → Weekday → Weekend → Categories → Fine-tune → Acquisition
+ * Screens 0–8: City → Home Neighborhood → Favorites → Persona → Weekday → Weekend → Categories → Fine-tune → Acquisition
  * (Welcome merged with City to reduce taps)
  */
 import { useState, useEffect, useRef } from "react";
@@ -137,7 +137,7 @@ function CitySelectionStep({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search cities…"
-          className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm"
+          className="w-full rounded-[14px] border border-border-app bg-surface-alt px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         {geoLoading && (
           <p className="text-xs text-muted-foreground">Detecting your location…</p>
@@ -150,7 +150,7 @@ function CitySelectionStep({
               onClick={() => onCityChange(c.name)}
               className={cn(
                 "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                selectedCity?.id === c.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                selectedCity?.id === c.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
               )}
             >
               {c.name}
@@ -163,7 +163,7 @@ function CitySelectionStep({
           type="button"
           onClick={onNext}
           disabled={!homeCity?.trim()}
-          className="w-full rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors touch-manipulation"
         >
           Continue
         </button>
@@ -172,20 +172,77 @@ function CitySelectionStep({
   );
 }
 
-function NeighborhoodSelectionStep({
-  homeCity,
-  primaryNeighborhood,
+function HomeNeighborhoodStep({
+  homeNeighborhood,
+  onSelect,
+  onNotSure,
+  onNext,
+  neighborhoods,
+}: {
+  homeNeighborhood: string | null;
+  onSelect: (n: string) => void;
+  onNotSure: () => void;
+  onNext: () => void;
+  neighborhoods: string[];
+}) {
+  return (
+    <>
+      <div>
+        <h2 className="text-lg font-semibold">Which neighborhood do you live in?</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          We&apos;ll use this for &quot;Near me&quot; when location isn&apos;t available.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {neighborhoods.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onSelect(n)}
+            className={cn(
+              "text-sm font-medium px-4 py-2 rounded-full transition-colors",
+              homeNeighborhood === n ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+            )}
+          >
+            {n}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={onNotSure}
+          className={cn(
+            "text-sm font-medium px-4 py-2 rounded-full transition-colors",
+            !homeNeighborhood ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+          )}
+        >
+          I&apos;m not sure yet
+        </button>
+      </div>
+      <div className="pt-4">
+        <button
+          type="button"
+          onClick={onNext}
+          className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors touch-manipulation"
+        >
+          Next
+        </button>
+      </div>
+    </>
+  );
+}
+
+function FavoriteNeighborhoodsStep({
+  preferredNeighborhoods,
   primaryNeighborhoodFreeform,
-  onSelectChip,
+  onToggleNeighborhood,
   onAnotherNeighborhood,
   onNotSure,
   onNext,
   neighborhoods,
 }: {
-  homeCity: string;
-  primaryNeighborhood: string | null;
+  preferredNeighborhoods: string[];
   primaryNeighborhoodFreeform: string | null;
-  onSelectChip: (n: string) => void;
+  onToggleNeighborhood: (n: string) => void;
   onAnotherNeighborhood: (freeform: string | null) => void;
   onNotSure: () => void;
   onNext: () => void;
@@ -202,9 +259,9 @@ function NeighborhoodSelectionStep({
   return (
     <>
       <div>
-        <h2 className="text-lg font-semibold">Which neighborhood are you mostly in?</h2>
+        <h2 className="text-lg font-semibold">What are your favorite neighborhoods to explore?</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          We&apos;ll prioritize places near you. Optional.
+          Select all that apply. We&apos;ll prioritize places in these areas.
         </p>
       </div>
       {!showFreeform ? (
@@ -214,10 +271,10 @@ function NeighborhoodSelectionStep({
               <button
                 key={n}
                 type="button"
-                onClick={() => onSelectChip(n)}
+                onClick={() => onToggleNeighborhood(n)}
                 className={cn(
                   "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                  primaryNeighborhood === n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  preferredNeighborhoods.includes(n) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                 )}
               >
                 {n}
@@ -228,7 +285,7 @@ function NeighborhoodSelectionStep({
               onClick={() => setShowFreeform(true)}
               className={cn(
                 "text-sm font-medium px-4 py-2 rounded-full border border-dashed transition-colors",
-                primaryNeighborhoodFreeform ? "border-primary text-primary" : "border-muted-foreground/50 text-muted-foreground hover:bg-muted/50"
+                primaryNeighborhoodFreeform ? "border-primary text-primary" : "border-border-app text-muted-foreground hover:bg-surface-alt"
               )}
             >
               Another neighborhood
@@ -238,7 +295,7 @@ function NeighborhoodSelectionStep({
               onClick={onNotSure}
               className={cn(
                 "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-                !primaryNeighborhood && !primaryNeighborhoodFreeform ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                preferredNeighborhoods.length === 0 && !primaryNeighborhoodFreeform ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
               )}
             >
               I&apos;m not sure yet
@@ -248,7 +305,7 @@ function NeighborhoodSelectionStep({
             <button
               type="button"
               onClick={onNext}
-              className="w-full rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors touch-manipulation"
             >
               Next
             </button>
@@ -261,7 +318,7 @@ function NeighborhoodSelectionStep({
             value={freeformValue}
             onChange={(e) => setFreeformValue(e.target.value)}
             placeholder="Type your neighborhood (optional)"
-            className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm"
+            className="w-full rounded-[14px] border border-border-app bg-surface-alt px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
             autoFocus
           />
           <div className="flex gap-2">
@@ -292,7 +349,7 @@ function NeighborhoodSelectionStep({
 
 export interface OnboardingData {
   home_city: string;
-  primary_neighborhood: string | null;
+  home_neighborhood: string | null;
   primary_neighborhood_freeform: string | null;
   preferred_neighborhoods: string[];
   persona_type: "local" | "nomad" | "tourist" | null;
@@ -306,7 +363,7 @@ export interface OnboardingData {
 
 const DEFAULT_DATA: OnboardingData = {
   home_city: "Buenos Aires",
-  primary_neighborhood: null,
+  home_neighborhood: null,
   primary_neighborhood_freeform: null,
   preferred_neighborhoods: [],
   persona_type: null,
@@ -358,7 +415,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
   const { cities } = useCities();
   const { neighborhoods } = useNeighborhoods(data.home_city);
 
-  const totalSteps = 8; // 0–7: City, Neighborhood, Persona, Weekday, Weekend, Categories, Fine-tune, Acquisition
+  const totalSteps = 9; // 0–8: City, Home, Favorites, Persona, Weekday, Weekend, Categories, Fine-tune, Acquisition
   const progress = step + 1;
 
   const toggle = (
@@ -394,11 +451,11 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
   };
 
   const handleSkip = () => {
-    if (step === 6) {
+    if (step === 7) {
       // Fine-tune is skippable — go to Acquisition
-      setStep(7);
-    } else if (step >= 3) {
-      // "Skip for now" from step 3+ (persona done) jumps to feed
+      setStep(8);
+    } else if (step >= 4) {
+      // "Skip for now" from step 4+ (persona done) jumps to feed
       handleFinish();
     }
   };
@@ -410,8 +467,14 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
       data.weekend_preferences,
       data.interests
     );
-    // Only use canonical primary_neighborhood for filtering (not freeform)
-    const preferred_neighborhoods = data.primary_neighborhood ? [data.primary_neighborhood] : [];
+    const preferred_neighborhoods =
+      data.preferred_neighborhoods?.length > 0
+        ? data.preferred_neighborhoods
+        : data.primary_neighborhood_freeform
+          ? [data.primary_neighborhood_freeform]
+          : data.home_neighborhood
+            ? [data.home_neighborhood]
+            : [];
     await onComplete({
       ...data,
       preferred_neighborhoods,
@@ -425,18 +488,20 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
       case 0:
         return !!data.home_city?.trim();
       case 1:
-        return true; // Neighborhood can be null (I'm not sure)
+        return true; // Home neighborhood optional (I'm not sure)
       case 2:
-        return !!data.persona_type;
+        return true; // Favorite neighborhoods optional
       case 3:
-        return data.weekday_preferences.length > 0;
+        return !!data.persona_type;
       case 4:
-        return data.weekend_preferences.length > 0;
+        return data.weekday_preferences.length > 0;
       case 5:
-        return data.interests.length > 0;
+        return data.weekend_preferences.length > 0;
       case 6:
-        return true; // Optional
+        return data.interests.length > 0;
       case 7:
+        return true; // Optional
+      case 8:
         return true;
       default:
         return true;
@@ -465,7 +530,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
               key={i}
               className={cn(
                 "h-1 rounded-full flex-1 max-w-8 transition-colors",
-                i <= step ? "bg-primary" : "bg-muted"
+                i <= step ? "bg-primary" : "bg-surface-alt"
               )}
             />
           ))}
@@ -487,28 +552,42 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
         )}
 
         {step === 1 && (
-          <NeighborhoodSelectionStep
-            homeCity={data.home_city}
-            primaryNeighborhood={data.primary_neighborhood}
-            primaryNeighborhoodFreeform={data.primary_neighborhood_freeform}
+          <HomeNeighborhoodStep
+            homeNeighborhood={data.home_neighborhood}
+            onSelect={(n) => setSingle("home_neighborhood", n)}
+            onNotSure={() => setSingle("home_neighborhood", null)}
             neighborhoods={neighborhoods}
-            onSelectChip={(n) => {
-              setSingle("primary_neighborhood", n);
-              setSingle("primary_neighborhood_freeform", null);
-            }}
-            onAnotherNeighborhood={(freeform) => {
-              setSingle("primary_neighborhood", null);
-              setSingle("primary_neighborhood_freeform", freeform || null);
-            }}
-            onNotSure={() => {
-              setSingle("primary_neighborhood", null);
-              setSingle("primary_neighborhood_freeform", null);
-            }}
             onNext={handleNext}
           />
         )}
 
         {step === 2 && (
+          <FavoriteNeighborhoodsStep
+            preferredNeighborhoods={data.preferred_neighborhoods}
+            primaryNeighborhoodFreeform={data.primary_neighborhood_freeform}
+            neighborhoods={neighborhoods}
+            onToggleNeighborhood={(n) => toggle("preferred_neighborhoods", n, true)}
+            onAnotherNeighborhood={(freeform) => {
+              setData((d) => ({
+                ...d,
+                primary_neighborhood_freeform: freeform || null,
+                preferred_neighborhoods: freeform
+                  ? [...(d.preferred_neighborhoods || []).filter((x) => x !== freeform), freeform]
+                  : d.preferred_neighborhoods || [],
+              }));
+            }}
+            onNotSure={() => {
+              setData((d) => ({
+                ...d,
+                preferred_neighborhoods: [],
+                primary_neighborhood_freeform: null,
+              }));
+            }}
+            onNext={handleNext}
+          />
+        )}
+
+        {step === 3 && (
           <>
             <div>
               <h2 className="text-lg font-semibold">What best describes you in this city?</h2>
@@ -523,10 +602,10 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                   type="button"
                   onClick={() => setSingle("persona_type", o.id)}
                   className={cn(
-                    "w-full text-left px-4 py-3 rounded-lg border text-sm font-medium transition-colors",
+                    "w-full text-left px-4 py-3 rounded-[14px] border text-sm font-medium transition-colors touch-manipulation",
                     data.persona_type === o.id
                       ? "border-primary bg-primary/10 text-primary"
-                      : "border-border hover:bg-muted/50"
+                      : "border-border-app hover:bg-surface-alt"
                   )}
                 >
                   {o.label}
@@ -546,7 +625,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
           </>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <>
             <div>
               <h2 className="text-lg font-semibold">
@@ -566,7 +645,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                     "text-sm font-medium px-4 py-2 rounded-full transition-colors",
                     data.weekday_preferences.includes(o.id)
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
                   {o.label}
@@ -582,7 +661,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
               >
                 Next
               </button>
-              {step >= 3 && (
+              {step >= 4 && (
                 <button
                   type="button"
                   onClick={handleSkip}
@@ -595,7 +674,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
           </>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <>
             <div>
               <h2 className="text-lg font-semibold">
@@ -615,7 +694,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                     "text-sm font-medium px-4 py-2 rounded-full transition-colors",
                     data.weekend_preferences.includes(o.id)
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
                   {o.label}
@@ -635,7 +714,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
           </>
         )}
 
-        {step === 5 && (
+        {step === 6 && (
           <>
             <div>
               <h2 className="text-lg font-semibold">
@@ -655,7 +734,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                     "text-sm font-medium px-4 py-2 rounded-full transition-colors",
                     data.interests.includes(o.id)
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
                   {o.label}
@@ -675,7 +754,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
           </>
         )}
 
-        {step === 6 && (
+        {step === 7 && (
           <>
             <div>
               <h2 className="text-lg font-semibold">Optional: fine-tune your picks</h2>
@@ -696,7 +775,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                         "text-sm font-medium px-4 py-2 rounded-full transition-colors",
                         data.vibe_tags_preferred.includes(o.id)
                           ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                       )}
                     >
                       {o.label}
@@ -716,7 +795,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                         "text-sm font-medium px-4 py-2 rounded-full transition-colors",
                         data.budget_band === o.id
                           ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                       )}
                     >
                       {o.label}
@@ -744,7 +823,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
           </>
         )}
 
-        {step === 7 && (
+        {step === 8 && (
           <>
             <div>
               <h2 className="text-lg font-semibold">How did you hear about us?</h2>
@@ -762,7 +841,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                     "text-sm font-medium px-4 py-2 rounded-full transition-colors",
                     data.acquisition_source === o.id
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
                   {o.label}
@@ -774,7 +853,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                 type="button"
                 onClick={handleFinish}
                 disabled={saving}
-                className="w-full rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors touch-manipulation"
               >
                 {saving ? "Setting up…" : "See my picks"}
               </button>

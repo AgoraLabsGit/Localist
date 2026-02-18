@@ -6,23 +6,23 @@ import { useCities, getClosestCity } from "@/hooks/use-cities";
 import { useNeighborhoods } from "@/hooks/use-neighborhoods";
 import { cn } from "@/lib/utils";
 
+const CHIP_SELECTED = "bg-accent-cyan/25 text-foreground border-accent-cyan";
+const CHIP_UNSELECTED = "bg-transparent text-slate-400 border-[rgba(148,163,184,0.4)] hover:text-slate-300 hover:bg-slate-900/50";
+
 interface LocationPrefs {
   home_city: string;
-  primary_neighborhood: string | null;
-  primary_neighborhood_freeform: string | null;
+  home_neighborhood: string | null;
 }
 
 export function LocationSection() {
   const [prefs, setPrefs] = useState<LocationPrefs>({
     home_city: "Buenos Aires",
-    primary_neighborhood: null,
-    primary_neighborhood_freeform: null,
+    home_neighborhood: null,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
-  const [showFreeform, setShowFreeform] = useState(false);
-  const [freeformValue, setFreeformValue] = useState("");
+  const [showHomeNeighborhoodEdit, setShowHomeNeighborhoodEdit] = useState(false);
   const { cities } = useCities();
   const { neighborhoods } = useNeighborhoods(prefs.home_city);
 
@@ -32,10 +32,8 @@ export function LocationSection() {
       .then((d) => {
         setPrefs({
           home_city: d.home_city ?? "Buenos Aires",
-          primary_neighborhood: d.primary_neighborhood ?? null,
-          primary_neighborhood_freeform: d.primary_neighborhood_freeform ?? null,
+          home_neighborhood: d.home_neighborhood ?? null,
         });
-        setFreeformValue(d.primary_neighborhood_freeform ?? "");
       })
       .finally(() => setLoading(false));
   }, []);
@@ -47,27 +45,37 @@ export function LocationSection() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...next,
-        preferred_neighborhoods: next.primary_neighborhood ? [next.primary_neighborhood] : [],
+        home_city: next.home_city,
+        home_neighborhood: next.home_neighborhood,
       }),
     });
-    setPrefs((p) => ({ ...p, ...updates }));
+    setPrefs(next);
     setSaving(false);
     setShowCityPicker(false);
-    setShowFreeform(false);
+    setShowHomeNeighborhoodEdit(false);
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground font-body">Loading…</p>;
 
   return (
-    <div className="space-y-4">
-      <h2 className="font-semibold">Location</h2>
+    <div className="space-y-4 font-body">
+      <h2 className="font-semibold text-foreground">Location</h2>
       <p className="text-sm text-muted-foreground">
         Used to scope your feed and personalize recommendations.
       </p>
 
+      {/* City */}
       <div>
-        <p className="text-sm font-medium mb-1">City</p>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <p className="text-sm font-medium text-foreground">City</p>
+          <button
+            type="button"
+            onClick={() => setShowCityPicker(!showCityPicker)}
+            className="text-accent-cyan hover:underline text-sm font-medium shrink-0"
+          >
+            {showCityPicker ? "Done" : "Edit"}
+          </button>
+        </div>
         {showCityPicker ? (
           <CityPicker
             homeCity={prefs.home_city}
@@ -75,91 +83,45 @@ export function LocationSection() {
             onCancel={() => setShowCityPicker(false)}
             saving={saving}
             cities={cities}
+            chipSelected={CHIP_SELECTED}
+            chipUnselected={CHIP_UNSELECTED}
           />
         ) : (
-          <p className="text-muted-foreground">
-            {prefs.home_city}{" "}
-            <button
-              type="button"
-              onClick={() => setShowCityPicker(true)}
-              className="text-primary hover:underline text-sm"
-            >
-              Change city
-            </button>
-          </p>
+          <p className="text-foreground">{prefs.home_city}</p>
         )}
       </div>
 
+      {/* Home Neighborhood */}
       <div>
-        <p className="text-sm font-medium mb-2">Neighborhood</p>
-        {showFreeform ? (
-          <div className="space-y-2">
-            <input
-              type="text"
-              value={freeformValue}
-              onChange={(e) => setFreeformValue(e.target.value)}
-              placeholder="Type your neighborhood (optional)"
-              className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm"
-            />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowFreeform(false);
-                  setFreeformValue("");
-                }}
-                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={() => save({ primary_neighborhood: null, primary_neighborhood_freeform: freeformValue.trim() || null })}
-                disabled={saving}
-                className="flex-1 rounded-lg bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-foreground">Home Neighborhood</p>
+          <button
+            type="button"
+            onClick={() => setShowHomeNeighborhoodEdit(!showHomeNeighborhoodEdit)}
+            className="text-accent-cyan hover:underline text-sm font-medium shrink-0"
+          >
+            {showHomeNeighborhoodEdit ? "Done" : "Edit"}
+          </button>
+        </div>
+        {showHomeNeighborhoodEdit ? (
+          <div className="flex flex-wrap gap-1.5 mt-2">
             {neighborhoods.map((n) => (
               <button
                 key={n}
                 type="button"
-                onClick={() => save({ primary_neighborhood: n, primary_neighborhood_freeform: null })}
+                onClick={() => save({ home_neighborhood: prefs.home_neighborhood === n ? null : n })}
                 disabled={saving}
                 className={cn(
-                  "text-sm px-3 py-1.5 rounded-full transition-colors",
-                  prefs.primary_neighborhood === n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  "text-sm font-body px-3 py-1.5 rounded-full border transition-colors",
+                  prefs.home_neighborhood === n ? CHIP_SELECTED : CHIP_UNSELECTED
                 )}
               >
                 {n}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => setShowFreeform(true)}
-              className={cn(
-                "text-sm px-3 py-1.5 rounded-full border border-dashed transition-colors",
-                prefs.primary_neighborhood_freeform ? "border-primary text-primary" : "border-muted-foreground/50 text-muted-foreground hover:bg-muted/50"
-              )}
-            >
-              Another neighborhood
-            </button>
-            <button
-              type="button"
-              onClick={() => save({ primary_neighborhood: null, primary_neighborhood_freeform: null })}
-              disabled={saving}
-              className={cn(
-                "text-sm px-3 py-1.5 rounded-full transition-colors",
-                !prefs.primary_neighborhood && !prefs.primary_neighborhood_freeform ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-              )}
-            >
-              I&apos;m not sure yet
-            </button>
           </div>
+        ) : (
+          <p className="text-foreground">{prefs.home_neighborhood ?? "Not set"}</p>
         )}
       </div>
     </div>
@@ -172,12 +134,16 @@ function CityPicker({
   onCancel,
   saving,
   cities,
+  chipSelected,
+  chipUnselected,
 }: {
   homeCity: string;
   onCityChange: (city: string) => void;
   onCancel: () => void;
   saving: boolean;
   cities: { id: string; name: string; center?: { lat: number; lng: number } }[];
+  chipSelected: string;
+  chipUnselected: string;
 }) {
   const [query, setQuery] = useState("");
   const [geoLoading, setGeoLoading] = useState(false);
@@ -212,10 +178,10 @@ function CityPicker({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search cities…"
-        className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm"
+        className="w-full rounded-[14px] border border-[rgba(148,163,184,0.4)] bg-slate-900 px-4 py-3 text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent-cyan/30"
       />
       {geoLoading && <p className="text-xs text-muted-foreground">Detecting location…</p>}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {filtered.map((c) => (
           <button
             key={c.id}
@@ -223,17 +189,14 @@ function CityPicker({
             onClick={() => onCityChange(c.name)}
             disabled={saving}
             className={cn(
-              "text-sm font-medium px-4 py-2 rounded-full transition-colors",
-              selectedCity?.id === c.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+              "text-sm font-body px-3 py-1.5 rounded-full border transition-colors",
+              selectedCity?.id === c.id ? chipSelected : chipUnselected
             )}
           >
             {c.name}
           </button>
         ))}
       </div>
-      <button type="button" onClick={onCancel} className="text-sm text-muted-foreground hover:text-foreground">
-        Cancel
-      </button>
     </div>
   );
 }

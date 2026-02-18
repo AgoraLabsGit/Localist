@@ -4,24 +4,47 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --primary: 262 83% 58%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
+    /* Design tokens: neutral, desaturated, dark-mode + mobile friendly */
+    --app: #020617;
+    --surface: #0f172a;
+    --surface-alt: #1e293b;
+    --text-primary: #f9fafb;
+    --text-secondary: #e5e7eb;
+    --text-muted: #94a3b8;
+    --accent-steel: #64748b;
+    --accent-cyan: #0ea5e9;
+    --accent-success: #22c55e;
+    --accent-warning: #f59e0b;
+    --border-token: #1e293b;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --chip-bg: rgba(148, 163, 184, 0.18);
+    --chip-user-border: rgba(148, 163, 184, 0.5);
+
+    /* Elevation & radius scale (native-ready) */
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+
+    /* Shadcn semantics → neutral dark theme */
+    --background: 222 47% 3%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 7%;
+    --card-foreground: 210 40% 98%;
+    /* Primary = cyan for buttons, links */
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 20% 65%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 262 83% 58%;
-    --radius: 0.75rem;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 199 89% 48%;
+    --radius: 0.875rem;
   }
 }
 
@@ -30,6 +53,6 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-app text-foreground antialiased;
   }
 }

@@ -52,9 +52,13 @@ export async function GET(
     ? venue.photo_urls
     : [];
 
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://localist.app";
+  const shareUrl = `${baseUrl}/buenos-aires/places/${highlight.id}`;
+
   return NextResponse.json({
     id: highlight.id,
     place_id: placeId,
+    share_url: shareUrl,
     name: venue?.name ?? highlight.title,
     lat: venue?.latitude ?? null,
     lng: venue?.longitude ?? null,

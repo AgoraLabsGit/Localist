@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-const tabs = ["Concierge", "Saved", "Highlights"] as const;
+const tabs = ["My Places", "Concierge", "Explore"] as const;
 export type Tab = (typeof tabs)[number];
 
 interface TabNavProps {
@@ -12,23 +12,29 @@ interface TabNavProps {
 
 export function TabNav({ active, onTabChange }: TabNavProps) {
   return (
-    <div className="sticky top-[57px] z-40 bg-background border-b">
-      <div className="max-w-lg mx-auto flex">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => onTabChange(tab)}
-            className={cn(
-              "flex-1 py-3 text-sm font-medium transition-colors",
-              active === tab
-                ? "text-primary border-b-2 border-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+    <div className="flex w-full border-b border-slate-800" role="tablist">
+      {tabs.map((tab) => (
+        <button
+          key={tab}
+          role="tab"
+          aria-selected={active === tab}
+          onClick={() => onTabChange(tab)}
+          className={cn(
+            "flex-1 py-2.5 px-2 text-[16px] font-semibold font-display transition-colors touch-manipulation relative -mb-px",
+            active === tab
+              ? "text-[#E5E7EB]"
+              : "text-[#64748b]/70 border-transparent hover:text-[#94A3B8]"
+          )}
+        >
+          {tab}
+          {active === tab && (
+            <span
+              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[110%] h-[2px] bg-cyan-400 rounded-full"
+              aria-hidden
+            />
+          )}
+        </button>
+      ))}
     </div>
   );
 }

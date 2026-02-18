@@ -19,7 +19,8 @@
     "update:descriptions": "npx tsx scripts/update-descriptions-from-foursquare.ts",
     "compute:scores": "npx tsx scripts/compute-quality-scores.ts",
     "sync:neighborhoods": "npx tsx scripts/sync-neighborhoods-from-geojson.ts",
-    "normalize:neighborhoods": "npx tsx scripts/normalize-neighborhood-names.ts"
+    "normalize:neighborhoods": "npx tsx scripts/normalize-neighborhood-names.ts",
+    "fix:venue-fsq-photos": "npx tsx scripts/fix-venue-fsq-photos.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",

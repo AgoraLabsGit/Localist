@@ -2,25 +2,26 @@
 
 import { Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { TimeContext } from "@/lib/concierge";
+import type { TimeFilter } from "@/lib/concierge";
 
 export interface ConciergeFilterState {
-  timeContext: TimeContext | "today";
-  radius: "near" | "city" | "all";
+  timeContext: TimeFilter;
+  radius: "near" | "all";
   typeGroup: "food_drink" | "culture" | "outdoors" | "all";
+  favoriteNeighborhoodsOnly: boolean;
 }
 
-const TIME_OPTIONS: { value: ConciergeFilterState["timeContext"]; label: string }[] = [
+/** CONCIERGE §6: Day/Time filters */
+const TIME_OPTIONS: { value: TimeFilter; label: string }[] = [
   { value: "today", label: "Today" },
-  { value: "weekday", label: "Weekdays" },
-  { value: "weekend", label: "Weekend (Fri–Sat)" },
-  { value: "sunday", label: "Sunday only" },
+  { value: "tonight", label: "Tonight" },
+  { value: "this_week", label: "This week" },
+  { value: "this_weekend", label: "This weekend" },
 ];
 
 const RADIUS_OPTIONS: { value: ConciergeFilterState["radius"]; label: string }[] = [
-  { value: "all", label: "Any" },
+  { value: "all", label: "All" },
   { value: "near", label: "Near me" },
-  { value: "city", label: "Whole city" },
 ];
 
 const TYPE_OPTIONS: { value: ConciergeFilterState["typeGroup"]; label: string }[] = [
@@ -36,6 +37,7 @@ interface ConciergeFilterSheetProps {
   filters: ConciergeFilterState;
   onFiltersChange: (f: ConciergeFilterState) => void;
   onApply: () => void;
+  hasFavoriteNeighborhoods?: boolean;
 }
 
 export function ConciergeFilterSheet({
@@ -44,6 +46,7 @@ export function ConciergeFilterSheet({
   filters,
   onFiltersChange,
   onApply,
+  hasFavoriteNeighborhoods = false,
 }: ConciergeFilterSheetProps) {
   if (!open) return null;
 
@@ -51,13 +54,14 @@ export function ConciergeFilterSheet({
     filters.timeContext !== "today",
     filters.radius !== "all",
     filters.typeGroup !== "all",
+    filters.favoriteNeighborhoodsOnly,
   ].filter(Boolean).length;
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/30" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-[min(320px,100%)] bg-background border-l shadow-xl flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b">
+      <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose} />
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-[min(320px,100%)] bg-surface border-l border-[rgba(148,163,184,0.25)] shadow-card-soft flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-[rgba(148,163,184,0.25)]">
           <div className="flex items-center gap-2">
             <Filter className="w-5 h-5 text-muted-foreground" />
             <h2 className="font-semibold">Concierge filters</h2>
@@ -76,8 +80,8 @@ export function ConciergeFilterSheet({
                   type="button"
                   onClick={() => onFiltersChange({ ...filters, timeContext: o.value })}
                   className={cn(
-                    "text-sm font-medium px-3 py-1.5 rounded-full transition-colors",
-                    filters.timeContext === o.value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                    filters.timeContext === o.value ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
                   {o.label}
@@ -85,6 +89,21 @@ export function ConciergeFilterSheet({
               ))}
             </div>
           </div>
+          {hasFavoriteNeighborhoods && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Area</p>
+              <button
+                type="button"
+                onClick={() => onFiltersChange({ ...filters, favoriteNeighborhoodsOnly: !filters.favoriteNeighborhoodsOnly })}
+                className={cn(
+                  "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                  filters.favoriteNeighborhoodsOnly ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                )}
+              >
+                Favorite neighborhoods only
+              </button>
+            </div>
+          )}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2">Radius</p>
             <div className="flex flex-wrap gap-2">
@@ -94,8 +113,8 @@ export function ConciergeFilterSheet({
                   type="button"
                   onClick={() => onFiltersChange({ ...filters, radius: o.value })}
                   className={cn(
-                    "text-sm font-medium px-3 py-1.5 rounded-full transition-colors",
-                    filters.radius === o.value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                    filters.radius === o.value ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
                   {o.label}
@@ -112,8 +131,8 @@ export function ConciergeFilterSheet({
                   type="button"
                   onClick={() => onFiltersChange({ ...filters, typeGroup: o.value })}
                   className={cn(
-                    "text-sm font-medium px-3 py-1.5 rounded-full transition-colors",
-                    filters.typeGroup === o.value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                    filters.typeGroup === o.value ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
                   {o.label}
@@ -122,11 +141,11 @@ export function ConciergeFilterSheet({
             </div>
           </div>
         </div>
-        <div className="p-4 border-t">
+        <div className="p-4 border-t border-[rgba(148,163,184,0.25)]">
           <button
             type="button"
             onClick={() => { onApply(); onClose(); }}
-            className="w-full rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="w-full rounded-[14px] bg-accent-cyan py-3 text-sm font-medium text-white hover:bg-accent-cyan/90 transition-colors touch-manipulation"
           >
             Apply {appliedCount > 0 ? `(${appliedCount})` : ""}
           </button>

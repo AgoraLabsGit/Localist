@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { Filter, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toTitleCase } from "@/lib/neighborhoods";
 
 export const NEIGHBORHOODS = [
   "all", "Palermo", "Recoleta", "San Telmo", "La Boca", "Belgrano",
@@ -37,8 +38,13 @@ export function formatFilterLabel(s: string) {
 
 export interface FilterState {
   category: string;
-  neighborhood: string;
+  /** Multi-select: empty or ["all"] = show all. ["Palermo","Villa Crespo"] = those areas. */
+  neighborhoods: string[];
   vibe: string;
+  /** User tags to filter by (multi-select) */
+  tags?: string[];
+  /** Min rating (1-5) for Your Places Visited/Favorites */
+  ratingMin?: number;
 }
 
 interface FilterSheetProps {
@@ -49,10 +55,12 @@ interface FilterSheetProps {
   onApply: () => void;
   /** Number of results for current sheet filters (computed by parent) */
   resultsCount: number;
-  /** User's preferred neighborhoods — adds "Your neighborhood" option */
+  /** User's preferred neighborhoods — adds "Favorite neighborhoods" option */
   preferredNeighborhoods?: string[];
   /** Neighborhoods for Area filter. From DB + highlights. When omitted, uses hardcoded NEIGHBORHOODS. */
   neighborhoods?: string[];
+  /** Show Your Places filters (tags, rating) - only when on Your Places tab */
+  showYourPlacesFilters?: boolean;
 }
 
 function ChipRow({
@@ -78,10 +86,10 @@ function ChipRow({
             type="button"
             onClick={() => onChange(opt)}
             className={cn(
-              "text-sm font-medium px-3 py-1.5 rounded-full transition-colors",
+              "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
               value === opt
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                ? "bg-tab-selected text-[#E5E7EB]"
+                : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
             )}
           >
             {formatLabel(opt)}
@@ -92,15 +100,14 @@ function ChipRow({
   );
 }
 
-function getGroupForCategory(category: string): string | null {
-  if (category === "all") return null;
-  for (const g of TYPE_GROUPS) {
-    if (g.types.includes(category)) return g.id;
-  }
-  return null;
-}
+export const FAVORITE_NEIGHBORHOODS = "__favorites__";
+export const NEAR_ME = "__near_me__";
 
-export const YOUR_NEIGHBORHOOD = "__yours__";
+const RATING_OPTIONS: { label: string; value?: number }[] = [
+  { label: "Any" },
+  { label: "4+", value: 4 },
+  { label: "5", value: 5 },
+];
 
 export function FilterSheet({
   open,
@@ -111,45 +118,56 @@ export function FilterSheet({
   resultsCount,
   preferredNeighborhoods = [],
   neighborhoods,
+  showYourPlacesFilters = false,
 }: FilterSheetProps) {
   const baseNeighborhoods = neighborhoods ?? [...NEIGHBORHOODS].filter((n) => n !== "all");
-  const neighborhoodOptions: string[] = preferredNeighborhoods.length > 0
-    ? [YOUR_NEIGHBORHOOD, "all", ...baseNeighborhoods]
-    : ["all", ...baseNeighborhoods];
-  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [areaExpanded, setAreaExpanded] = useState(true);
+  const [distinctUserTags, setDistinctUserTags] = useState<string[]>([]);
 
   useEffect(() => {
-    if (open && filters.category !== "all") {
-      setExpandedGroup(getGroupForCategory(filters.category));
-    } else if (!open) {
-      setExpandedGroup(null);
-    }
-  }, [open, filters.category]);
+    if (!showYourPlacesFilters || !open) return;
+    fetch("/api/user-tags/distinct")
+      .then((r) => (r.ok ? r.json() : { tags: [] }))
+      .then((d) => setDistinctUserTags(d.tags ?? []))
+      .catch(() => setDistinctUserTags([]));
+  }, [showYourPlacesFilters, open]);
 
-  const handleClear = () => {
+  const handleClearAll = () => {
     onFiltersChange({
       category: "all",
-      neighborhood: "all",
+      neighborhoods: [],
       vibe: "all",
+      tags: [],
+      ratingMin: undefined,
     });
-    setExpandedGroup(null);
+  };
+
+  const tags = filters.tags ?? [];
+  const toggleTagFilter = (tag: string) => {
+    const set = new Set(tags);
+    if (set.has(tag)) set.delete(tag);
+    else set.add(tag);
+    onFiltersChange({ ...filters, tags: Array.from(set) });
+  };
+
+  const isAllAreas = filters.neighborhoods.length === 0;
+  const toggleNeighborhood = (n: string) => {
+    if (n === "all") {
+      onFiltersChange({ ...filters, neighborhoods: [] });
+      return;
+    }
+    const set = new Set(filters.neighborhoods);
+    if (set.has(n)) {
+      set.delete(n);
+    } else {
+      set.add(n);
+    }
+    onFiltersChange({ ...filters, neighborhoods: Array.from(set) });
   };
 
   const handleApply = () => {
     onApply();
     onClose();
-  };
-
-  const handleGroupClick = (groupId: string) => {
-    const wasExpanded = expandedGroup === groupId;
-    setExpandedGroup((prev) => (prev === groupId ? null : groupId));
-    if (!wasExpanded) {
-      onFiltersChange({ ...filters, category: "all" });
-    }
-  };
-
-  const handleSubtypeClick = (type: string) => {
-    onFiltersChange({ ...filters, category: type });
   };
 
   return (
@@ -159,7 +177,7 @@ export function FilterSheet({
         type="button"
         aria-label="Close filters"
         className={cn(
-          "fixed inset-0 z-40 bg-black/20 transition-opacity duration-200",
+          "fixed inset-0 z-40 bg-black/40 transition-opacity duration-200",
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
         onClick={onClose}
@@ -167,117 +185,236 @@ export function FilterSheet({
       {/* Side panel — slides in from right */}
       <div
         className={cn(
-          "fixed right-0 top-0 bottom-0 z-50 w-72 sm:w-80 bg-background border-l shadow-xl flex flex-col transition-transform duration-200 ease-out",
+          "fixed right-0 top-0 bottom-0 z-50 w-72 sm:w-80 bg-surface border-l border-[rgba(148,163,184,0.25)] shadow-card-soft flex flex-col transition-transform duration-200 ease-out",
           open ? "translate-x-0" : "translate-x-full"
         )}
         role="dialog"
         aria-modal="true"
         aria-label="Filters"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(148,163,184,0.25)]">
           <h2 className="text-lg font-semibold">Filters</h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 -m-2 text-muted-foreground hover:text-foreground rounded-full"
+            className="p-2 -m-2 text-muted-foreground hover:text-foreground rounded-full transition-colors touch-manipulation"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
-          {/* Type — hierarchical: groups with expandable subtypes */}
+          {/* Type — parent groups + child subtypes when a group is selected */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1.5">Type</p>
-            <div className="space-y-2">
+            <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
-                onClick={() => {
-                  setExpandedGroup(null);
-                  onFiltersChange({ ...filters, category: "all" });
-                }}
+                onClick={() => onFiltersChange({ ...filters, category: "all" })}
                 className={cn(
-                  "flex w-full items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg transition-colors text-left",
-                  filters.category === "all"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                  "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                  filters.category === "all" ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                 )}
               >
                 All
               </button>
               {TYPE_GROUPS.map((group) => {
-                const isExpanded = expandedGroup === group.id;
-                const hasSelection =
-                  filters.category !== "all" && group.types.includes(filters.category);
+                const isGroupSelected = filters.category === group.id;
+                const isTypeInGroup = group.types.includes(filters.category);
+                const isActive = isGroupSelected || isTypeInGroup;
                 return (
-                  <div key={group.id}>
-                    <button
-                      type="button"
-                      onClick={() => handleGroupClick(group.id)}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-2 text-sm font-medium px-3 py-2 rounded-lg transition-colors text-left",
-                        hasSelection
-                          ? "bg-primary/10 text-primary"
-                          : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                      )}
-                    >
-                      <span>{group.label}</span>
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4 shrink-0" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 shrink-0" />
-                      )}
-                    </button>
-                    {isExpanded && (
-                      <div className="flex flex-wrap gap-1.5 mt-1.5 ml-3 pl-3 border-l-2 border-muted">
-                        {group.types.map((type) => (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={() => handleSubtypeClick(type)}
-                            className={cn(
-                              "text-sm font-medium px-3 py-1.5 rounded-full transition-colors",
-                              filters.category === type
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-muted-foreground hover:bg-muted/80"
-                            )}
-                          >
-                            {formatFilterLabel(type)}
-                          </button>
-                        ))}
-                      </div>
+                  <button
+                    key={group.id}
+                    type="button"
+                    onClick={() => onFiltersChange({ ...filters, category: filters.category === group.id ? "all" : group.id })}
+                    className={cn(
+                      "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                      isActive ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                     )}
-                  </div>
+                  >
+                    {group.label}
+                  </button>
                 );
               })}
             </div>
+            {(() => {
+              const activeGroup = TYPE_GROUPS.find(
+                (g) => g.id === filters.category || g.types.includes(filters.category)
+              );
+              if (!activeGroup) return null;
+              return (
+                <div className="mt-2 pl-2 border-l-2 border-border-app">
+                  <p className="text-xs text-muted-foreground mb-1.5">Narrow to</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onFiltersChange({ ...filters, category: activeGroup.id })}
+                      className={cn(
+                        "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                        filters.category === activeGroup.id ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                      )}
+                    >
+                      All {activeGroup.label}
+                    </button>
+                    {activeGroup.types.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => onFiltersChange({ ...filters, category: filters.category === type ? activeGroup.id : type })}
+                        className={cn(
+                          "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                          filters.category === type ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                        )}
+                      >
+                        {formatFilterLabel(type)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
-          <ChipRow
-            options={neighborhoodOptions as readonly string[]}
-            value={filters.neighborhood}
-            onChange={(n) => onFiltersChange({ ...filters, neighborhood: n })}
-            label="Area"
-            formatLabel={(opt) => opt === YOUR_NEIGHBORHOOD ? "Your neighborhood" : formatFilterLabel(opt)}
-          />
+          <div>
+            <button
+              type="button"
+              onClick={() => setAreaExpanded((e) => !e)}
+              className="flex w-full items-center justify-between gap-2 text-xs font-medium text-muted-foreground mb-1.5 hover:text-foreground"
+              aria-expanded={areaExpanded}
+            >
+              Area {filters.neighborhoods.length > 0 && `(${filters.neighborhoods.length})`}
+              {areaExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+            {areaExpanded && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onFiltersChange({ ...filters, neighborhoods: [] })}
+                    className={cn(
+                      "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                      isAllAreas ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                    )}
+                  >
+                    All areas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleNeighborhood(NEAR_ME)}
+                    className={cn(
+                      "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                      filters.neighborhoods.includes(NEAR_ME) ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                    )}
+                  >
+                    Near me
+                  </button>
+                  {preferredNeighborhoods.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => toggleNeighborhood(FAVORITE_NEIGHBORHOODS)}
+                    className={cn(
+                      "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                      filters.neighborhoods.includes(FAVORITE_NEIGHBORHOODS)
+                        ? "bg-tab-selected text-[#E5E7EB]"
+                        : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                    )}
+                  >
+                    Favorite neighborhoods
+                  </button>
+                  )}
+                  {baseNeighborhoods.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => toggleNeighborhood(n)}
+                      className={cn(
+                        "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                      filters.neighborhoods.includes(n) ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                    )}
+                  >
+                    {toTitleCase(n)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <ChipRow
             options={VIBES}
             value={filters.vibe}
             onChange={(v) => onFiltersChange({ ...filters, vibe: v })}
             label="Vibe"
           />
+
+          {showYourPlacesFilters && (
+            <>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">Your tags</p>
+                {distinctUserTags.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">
+                    Add tags on place pages to filter by them here.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {distinctUserTags.map((tag) => {
+                      const selected = tags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => toggleTagFilter(tag)}
+                          className={cn(
+                            "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                            selected ? "bg-tab-selected text-[#E5E7EB]" : "border border-chip-user text-[#94A3B8] hover:text-foreground hover:border-slate-400"
+                          )}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">Rating</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {RATING_OPTIONS.map(({ label, value }) => {
+                    const selected = (filters.ratingMin ?? undefined) === value;
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() =>
+                          onFiltersChange({
+                            ...filters,
+                            ratingMin: value,
+                          })
+                        }
+                        className={cn(
+                          "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
+                          selected ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
-        <div className="shrink-0 flex gap-2 px-4 py-3 border-t bg-background">
+        <div className="shrink-0 flex gap-2 px-4 py-3 border-t border-[rgba(148,163,184,0.25)] bg-surface">
           <button
             type="button"
-            onClick={handleClear}
-            className="flex-1 py-2.5 rounded-lg border border-input text-sm font-medium hover:bg-muted/50"
+            onClick={handleClearAll}
+            className="flex-1 py-2.5 rounded-[14px] border border-[rgba(148,163,184,0.25)] text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-surface-alt transition-colors touch-manipulation"
           >
-            Clear
+            Clear all
           </button>
           <button
             type="button"
             onClick={handleApply}
-            className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+            className="flex-1 py-2.5 rounded-[14px] bg-accent-cyan text-white text-sm font-medium hover:bg-accent-cyan/90 transition-colors touch-manipulation"
           >
             Show {resultsCount > 0 ? `${resultsCount} results` : "results"}
           </button>
@@ -294,16 +431,22 @@ export function FilterPill({
   onClick: () => void;
   appliedCount: number;
 }) {
+  const hasFilters = appliedCount > 0;
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-input bg-background hover:bg-muted/50 transition-colors"
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[14px] text-[13px] font-medium font-display border transition-colors touch-manipulation min-h-[42px]",
+        hasFilters
+          ? "bg-accent-cyan text-white border-accent-cyan"
+          : "border-[rgba(148,163,184,0.35)] bg-surface-alt hover:bg-surface text-muted-foreground hover:text-foreground"
+      )}
     >
-      <Filter className="w-4 h-4 text-muted-foreground" />
+      <Filter className="w-3.5 h-3.5" />
       <span>Filters</span>
-      {appliedCount > 0 && (
-        <span className="min-w-[1.25rem] h-5 flex items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">
+      {hasFilters && (
+        <span className="min-w-[1.25rem] h-5 flex items-center justify-center rounded-full bg-white/20 text-inherit text-xs font-semibold">
           {appliedCount}
         </span>
       )}
