@@ -116,7 +116,8 @@ Uses tiling, PostGIS neighborhoods, and type-based discovery.
 npx tsx scripts/fetch-venue-photos.ts
 npm run fetch:venue-tips buenos-aires   # optional; tips for AI enrichment
 npm run compute:scores buenos-aires
-npm run enrich:venues:ai buenos-aires   # Phase 2; after coverage confirmed
+npm run enrich:venues:ai buenos-aires      # tip-based (04mini)
+npm run enrich:venues:ai:web buenos-aires # no-tip venues (Perplexity)
 ```
 
 ---
@@ -154,6 +155,6 @@ So: run `sync:neighborhoods [city-slug]` **before** ingest to populate all neigh
 - [ ] Ingest run (`ingest:places:typed -- [slug] --force --incremental` for live cities)
 - [ ] Photos + scores run
 - [ ] Verify coverage (e.g. Villa Urquiza cafés)
-- [ ] AI enrichment (`npm run enrich:venues:ai` [slug]) — Phase 2, after coverage confirmed
+- [ ] AI enrichment (`enrich:venues:ai` then `enrich:venues:ai:web` [slug]) — Phase 2, after coverage confirmed
 - [ ] Verify Area filter shows expected neighborhoods
 - [ ] Add city to DB; app uses `GET /api/cities` for supported cities

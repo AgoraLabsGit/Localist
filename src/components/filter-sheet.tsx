@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 /**
  * Filter panel — Option B: side panel (drawer from right).
  * Type uses hierarchical groups: coarse group → subtypes.
@@ -88,7 +90,7 @@ function ChipRow({
             className={cn(
               "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
               value === opt
-                ? "bg-tab-selected text-[#E5E7EB]"
+                ? "bg-tab-selected text-tab-selected-fg"
                 : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
             )}
           >
@@ -103,11 +105,11 @@ function ChipRow({
 export const FAVORITE_NEIGHBORHOODS = "__favorites__";
 export const NEAR_ME = "__near_me__";
 
-const RATING_OPTIONS: { label: string; value?: number }[] = [
-  { label: "Any" },
-  { label: "4+", value: 4 },
-  { label: "5", value: 5 },
-];
+const RATING_OPTIONS = [
+  { labelKey: "ratingAny" as const, value: undefined },
+  { labelKey: "rating4Plus" as const, value: 4 },
+  { labelKey: "rating5" as const, value: 5 },
+] as const;
 
 export function FilterSheet({
   open,
@@ -120,6 +122,10 @@ export function FilterSheet({
   neighborhoods,
   showYourPlacesFilters = false,
 }: FilterSheetProps) {
+  const tFilters = useTranslations("filters");
+  const tCommon = useTranslations("common");
+  const tFilterChips = useTranslations("filterChips");
+  const tPlaceTypes = useTranslations("placeTypes");
   const baseNeighborhoods = neighborhoods ?? [...NEIGHBORHOODS].filter((n) => n !== "all");
   const [areaExpanded, setAreaExpanded] = useState(true);
   const [distinctUserTags, setDistinctUserTags] = useState<string[]>([]);
@@ -175,7 +181,7 @@ export function FilterSheet({
       {/* Backdrop — lighter so content remains visible behind */}
       <button
         type="button"
-        aria-label="Close filters"
+        aria-label={tCommon("close")}
         className={cn(
           "fixed inset-0 z-40 bg-black/40 transition-opacity duration-200",
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
@@ -185,20 +191,20 @@ export function FilterSheet({
       {/* Side panel — slides in from right */}
       <div
         className={cn(
-          "fixed right-0 top-0 bottom-0 z-50 w-72 sm:w-80 bg-surface border-l border-[rgba(148,163,184,0.25)] shadow-card-soft flex flex-col transition-transform duration-200 ease-out",
+          "fixed right-0 top-0 bottom-0 z-50 w-72 sm:w-80 bg-surface border-l border-border-app shadow-card-soft flex flex-col transition-transform duration-200 ease-out",
           open ? "translate-x-0" : "translate-x-full"
         )}
         role="dialog"
         aria-modal="true"
-        aria-label="Filters"
+        aria-label={tFilters("title")}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(148,163,184,0.25)]">
-          <h2 className="text-lg font-semibold">Filters</h2>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border-app">
+          <h2 className="text-lg font-semibold">{tFilters("title")}</h2>
           <button
             type="button"
             onClick={onClose}
             className="p-2 -m-2 text-muted-foreground hover:text-foreground rounded-full transition-colors touch-manipulation"
-            aria-label="Close"
+            aria-label={tCommon("close")}
           >
             <X className="w-5 h-5" />
           </button>
@@ -206,17 +212,17 @@ export function FilterSheet({
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
           {/* Type — parent groups + child subtypes when a group is selected */}
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">Type</p>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">{tFilters("type")}</p>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => onFiltersChange({ ...filters, category: "all" })}
                 className={cn(
                   "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                  filters.category === "all" ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                  filters.category === "all" ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                 )}
               >
-                All
+                {tCommon("all")}
               </button>
               {TYPE_GROUPS.map((group) => {
                 const isGroupSelected = filters.category === group.id;
@@ -229,10 +235,10 @@ export function FilterSheet({
                     onClick={() => onFiltersChange({ ...filters, category: filters.category === group.id ? "all" : group.id })}
                     className={cn(
                       "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                      isActive ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                      isActive ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                     )}
                   >
-                    {group.label}
+                    {tFilters(`typeGroups.${group.id}` as any) || group.label}
                   </button>
                 );
               })}
@@ -244,17 +250,17 @@ export function FilterSheet({
               if (!activeGroup) return null;
               return (
                 <div className="mt-2 pl-2 border-l-2 border-border-app">
-                  <p className="text-xs text-muted-foreground mb-1.5">Narrow to</p>
+                  <p className="text-xs text-muted-foreground mb-1.5">{tFilters("narrowTo")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
                       onClick={() => onFiltersChange({ ...filters, category: activeGroup.id })}
                       className={cn(
                         "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                        filters.category === activeGroup.id ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                        filters.category === activeGroup.id ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                       )}
                     >
-                      All {activeGroup.label}
+                      {tFilters("allGroup", { group: tFilters(`typeGroups.${activeGroup.id}` as any) || activeGroup.label })}
                     </button>
                     {activeGroup.types.map((type) => (
                       <button
@@ -263,10 +269,10 @@ export function FilterSheet({
                         onClick={() => onFiltersChange({ ...filters, category: filters.category === type ? activeGroup.id : type })}
                         className={cn(
                           "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                          filters.category === type ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                          filters.category === type ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                         )}
                       >
-                        {formatFilterLabel(type)}
+                        {tPlaceTypes(type as any) || formatFilterLabel(type)}
                       </button>
                     ))}
                   </div>
@@ -281,7 +287,7 @@ export function FilterSheet({
               className="flex w-full items-center justify-between gap-2 text-xs font-medium text-muted-foreground mb-1.5 hover:text-foreground"
               aria-expanded={areaExpanded}
             >
-              Area {filters.neighborhoods.length > 0 && `(${filters.neighborhoods.length})`}
+              {tFilters("area")} {filters.neighborhoods.length > 0 && `(${filters.neighborhoods.length})`}
               {areaExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </button>
             {areaExpanded && (
@@ -292,20 +298,20 @@ export function FilterSheet({
                     onClick={() => onFiltersChange({ ...filters, neighborhoods: [] })}
                     className={cn(
                       "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                      isAllAreas ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                      isAllAreas ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                     )}
                   >
-                    All areas
+                    {tCommon("allAreas")}
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleNeighborhood(NEAR_ME)}
                     className={cn(
                       "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                      filters.neighborhoods.includes(NEAR_ME) ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                      filters.neighborhoods.includes(NEAR_ME) ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                     )}
                   >
-                    Near me
+                    {tCommon("nearMe")}
                   </button>
                   {preferredNeighborhoods.length > 0 && (
                   <button
@@ -314,11 +320,11 @@ export function FilterSheet({
                     className={cn(
                       "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
                       filters.neighborhoods.includes(FAVORITE_NEIGHBORHOODS)
-                        ? "bg-tab-selected text-[#E5E7EB]"
+                        ? "bg-tab-selected text-tab-selected-fg"
                         : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                     )}
                   >
-                    Favorite neighborhoods
+                    {tFilters("favoriteNeighborhoods")}
                   </button>
                   )}
                   {baseNeighborhoods.map((n) => (
@@ -328,7 +334,7 @@ export function FilterSheet({
                       onClick={() => toggleNeighborhood(n)}
                       className={cn(
                         "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                      filters.neighborhoods.includes(n) ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                      filters.neighborhoods.includes(n) ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                     )}
                   >
                     {toTitleCase(n)}
@@ -342,16 +348,17 @@ export function FilterSheet({
             options={VIBES}
             value={filters.vibe}
             onChange={(v) => onFiltersChange({ ...filters, vibe: v })}
-            label="Vibe"
+            label={tFilters("vibe")}
+            formatLabel={(opt) => opt === "all" ? tCommon("all") : (tFilterChips(opt as any) || formatFilterLabel(opt))}
           />
 
           {showYourPlacesFilters && (
             <>
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1.5">Your tags</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">{tFilters("yourTags")}</p>
                 {distinctUserTags.length === 0 ? (
                   <p className="text-xs text-muted-foreground italic">
-                    Add tags on place pages to filter by them here.
+                    {tFilters("yourTagsEmpty")}
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
@@ -364,7 +371,7 @@ export function FilterSheet({
                           onClick={() => toggleTagFilter(tag)}
                           className={cn(
                             "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                            selected ? "bg-tab-selected text-[#E5E7EB]" : "border border-chip-user text-[#94A3B8] hover:text-foreground hover:border-slate-400"
+                            selected ? "bg-tab-selected text-tab-selected-fg" : "border border-chip-user text-muted-foreground hover:text-foreground hover:border-slate-400"
                           )}
                         >
                           {tag}
@@ -375,13 +382,13 @@ export function FilterSheet({
                 )}
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1.5">Rating</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">{tFilters("rating")}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {RATING_OPTIONS.map(({ label, value }) => {
+                  {RATING_OPTIONS.map(({ labelKey, value }) => {
                     const selected = (filters.ratingMin ?? undefined) === value;
                     return (
                       <button
-                        key={label}
+                        key={labelKey}
                         type="button"
                         onClick={() =>
                           onFiltersChange({
@@ -391,10 +398,10 @@ export function FilterSheet({
                         }
                         className={cn(
                           "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                          selected ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                          selected ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                         )}
                       >
-                        {label}
+                        {tFilters(labelKey)}
                       </button>
                     );
                   })}
@@ -403,20 +410,20 @@ export function FilterSheet({
             </>
           )}
         </div>
-        <div className="shrink-0 flex gap-2 px-4 py-3 border-t border-[rgba(148,163,184,0.25)] bg-surface">
+        <div className="shrink-0 flex gap-2 px-4 py-3 border-t border-border-app bg-surface">
           <button
             type="button"
             onClick={handleClearAll}
-            className="flex-1 py-2.5 rounded-[14px] border border-[rgba(148,163,184,0.25)] text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-surface-alt transition-colors touch-manipulation"
+            className="flex-1 py-2.5 rounded-[14px] border border-border-app text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-surface-alt transition-colors touch-manipulation"
           >
-            Clear all
+            {tCommon("clearAll")}
           </button>
           <button
             type="button"
             onClick={handleApply}
             className="flex-1 py-2.5 rounded-[14px] bg-accent-cyan text-white text-sm font-medium hover:bg-accent-cyan/90 transition-colors touch-manipulation"
           >
-            Show {resultsCount > 0 ? `${resultsCount} results` : "results"}
+            {resultsCount > 0 ? tFilters("showResults", { count: resultsCount }) : tFilters("results")}
           </button>
         </div>
       </div>
@@ -431,6 +438,7 @@ export function FilterPill({
   onClick: () => void;
   appliedCount: number;
 }) {
+  const tFilters = useTranslations("filters");
   const hasFilters = appliedCount > 0;
   return (
     <button
@@ -440,11 +448,11 @@ export function FilterPill({
         "inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[14px] text-[13px] font-medium font-display border transition-colors touch-manipulation min-h-[42px]",
         hasFilters
           ? "bg-accent-cyan text-white border-accent-cyan"
-          : "border-[rgba(148,163,184,0.35)] bg-surface-alt hover:bg-surface text-muted-foreground hover:text-foreground"
+          : "border-border-medium bg-surface-alt hover:bg-surface text-muted-foreground hover:text-foreground"
       )}
     >
       <Filter className="w-3.5 h-3.5" />
-      <span>Filters</span>
+      <span>{tFilters("title")}</span>
       {hasFilters && (
         <span className="min-w-[1.25rem] h-5 flex items-center justify-center rounded-full bg-white/20 text-inherit text-xs font-semibold">
           {appliedCount}

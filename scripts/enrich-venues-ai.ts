@@ -12,6 +12,7 @@
  *
  * Requires: OPENAI_API_KEY or ANTHROPIC_API_KEY in .env.local
  * Only processes highlights whose venue has fsq_tips. Skips those with short_description (idempotent).
+ * Processes all eligible highlights (no per-run cap). Cap: total active × 2, or MAX_ENRICH_ITEMS env.
  */
 
 import { config } from "dotenv";
@@ -22,9 +23,10 @@ import { loadCityFromDb, getDefaultCitySlug } from "./lib/load-city-from-db";
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const MAX_AI_CALLS_PER_RUN = 500;
 const BATCH_SIZE = 15; // 10–20 places per API call
 const BATCH_DELAY_MS = 500;
+// Cap: total active highlights × 2 (safety buffer). Prevents runaway loops; we can't have more to enrich than exist.
+// Override via MAX_ENRICH_ITEMS env if needed.
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -224,41 +226,62 @@ async function main() {
 
   const cityName = city.cityFallbackName ?? city.name;
 
-  let q = supabase
+  const { count: totalActive } = await supabase
     .from("highlights")
-    .select(
-      `
-      id,
-      title,
-      short_description,
-      category,
-      neighborhood,
-      avg_expected_price,
-      venue:venues(
-        id,
-        name,
-        neighborhood,
-        fsq_tips,
-        fsq_categories,
-        google_types,
-        rating,
-        rating_count
-      )
-    `
-    )
+    .select("id", { count: "exact", head: true })
     .eq("city", cityName)
     .eq("status", "active");
 
-  if (!BACKFILL) {
-    q = q.is("short_description", null);
+  const total = totalActive ?? 5000;
+  const maxFetch = Math.min(Number(process.env.MAX_ENRICH_ITEMS) || total * 2, 10000);
+  const PAGE_SIZE = 1000;
+
+  const allHighlights: unknown[] = [];
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    let q = supabase
+      .from("highlights")
+      .select(
+        `
+        id,
+        title,
+        short_description,
+        category,
+        neighborhood,
+        avg_expected_price,
+        venue:venues(
+          id,
+          name,
+          neighborhood,
+          fsq_tips,
+          fsq_categories,
+          google_types,
+          rating,
+          rating_count
+        )
+      `
+      )
+      .eq("city", cityName)
+      .eq("status", "active")
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (!BACKFILL) {
+      q = q.is("short_description", null);
+    }
+
+    const { data: page, error } = await q;
+    if (error) {
+      console.error("❌ Query failed:", error.message);
+      process.exit(1);
+    }
+    const rows = page ?? [];
+    allHighlights.push(...rows);
+    if (rows.length < PAGE_SIZE || allHighlights.length >= maxFetch) hasMore = false;
+    else offset += PAGE_SIZE;
   }
 
-  const { data: highlights, error } = await q.limit(MAX_AI_CALLS_PER_RUN * 2);
-
-  if (error) {
-    console.error("❌ Query failed:", error.message);
-    process.exit(1);
-  }
+  const highlights = allHighlights;
 
   const toEnrich = (highlights ?? []).filter((h) => {
     const v = Array.isArray((h as HighlightRow).venue) ? (h as HighlightRow).venue[0] : (h as HighlightRow).venue;
@@ -273,7 +296,7 @@ async function main() {
     : toEnrich;
 
   const startedAt = new Date();
-  const batch = filtered.slice(0, MAX_AI_CALLS_PER_RUN);
+  const batch = filtered;
   const modelUsed = OPENAI_KEY ? "gpt-4o-mini" : "claude-sonnet-4-20250514";
   console.log(
     `\n🤖 AI Enrichment: ${city.name}\n   Processing ${batch.length} highlights (of ${filtered.length} needing enrichment)\n   Batch size: ${BATCH_SIZE}, max API calls: ${Math.ceil(batch.length / BATCH_SIZE)}\n`

@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 export default function LoginPage() {
+  const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,13 +30,13 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-app">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-          <p className="text-muted-foreground mt-1">Sign in to Localist</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("welcomeBack")}</h1>
+          <p className="text-muted-foreground mt-1">{t("signInToLocalist")}</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
-              Email
+              {t("email")}
             </label>
             <input
               id="email"
@@ -43,12 +45,12 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-3 py-2 rounded-[14px] border border-border-app bg-surface-alt text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              placeholder="you@example.com"
+              placeholder={t("emailPlaceholder")}
             />
           </div>
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
-              Password
+              {t("password")}
             </label>
             <input
               id="password"
@@ -64,7 +66,7 @@ export default function LoginPage() {
           )}
           <p className="text-right">
             <Link href="/auth/forgot-password" className="text-sm text-muted-foreground hover:text-primary">
-              Forgot password?
+              {t("forgotPassword")}
             </Link>
           </p>
           <button
@@ -72,13 +74,13 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-2.5 rounded-[14px] bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors touch-manipulation"
           >
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? t("signingIn") : t("signIn")}
           </button>
         </form>
         <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
+          {t("noAccount")}{" "}
           <Link href="/auth/signup" className="text-primary hover:underline">
-            Sign up
+            {t("signUp")}
           </Link>
         </p>
       </div>

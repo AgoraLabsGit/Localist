@@ -122,4 +122,4 @@ Output: raw_count, main_gate_count, relaxed_gate_count, anchors_present, api_cal
 3. `npm run fetch:venue-tips buenos-aires`
 4. `npm run compute:scores buenos-aires`
 5. Confirm coverage: `SELECT COUNT(*) FROM highlights h JOIN venues v ON h.venue_id = v.id WHERE v.neighborhood ILIKE '%Villa Urquiza%' AND h.category = 'cafe'` — expect ≥10.
-6. `npm run enrich:venues:ai buenos-aires` — Phase 2, after coverage confirmed
+6. `npm run enrich:venues:ai buenos-aires` then `npm run enrich:venues:ai:web buenos-aires` — Phase 2, after coverage confirmed

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TimeFilter } from "@/lib/concierge";
@@ -11,24 +12,24 @@ export interface ConciergeFilterState {
   favoriteNeighborhoodsOnly: boolean;
 }
 
-/** CONCIERGE §6: Day/Time filters */
-const TIME_OPTIONS: { value: TimeFilter; label: string }[] = [
-  { value: "today", label: "Today" },
-  { value: "tonight", label: "Tonight" },
-  { value: "this_week", label: "This week" },
-  { value: "this_weekend", label: "This weekend" },
+/** CONCIERGE §6: Day/Time filters — labels from translations */
+const TIME_OPTIONS: { value: TimeFilter; labelKey: string }[] = [
+  { value: "today", labelKey: "today" },
+  { value: "tonight", labelKey: "tonight" },
+  { value: "this_week", labelKey: "thisWeek" },
+  { value: "this_weekend", labelKey: "thisWeekend" },
 ];
 
-const RADIUS_OPTIONS: { value: ConciergeFilterState["radius"]; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "near", label: "Near me" },
+const RADIUS_OPTIONS: { value: ConciergeFilterState["radius"]; labelKey: string }[] = [
+  { value: "all", labelKey: "all" },
+  { value: "near", labelKey: "nearMe" },
 ];
 
-const TYPE_OPTIONS: { value: ConciergeFilterState["typeGroup"]; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "food_drink", label: "Food & drink" },
-  { value: "culture", label: "Culture" },
-  { value: "outdoors", label: "Outdoors" },
+const TYPE_OPTIONS: { value: ConciergeFilterState["typeGroup"]; labelKey: string }[] = [
+  { value: "all", labelKey: "all" },
+  { value: "food_drink", labelKey: "foodDrink" },
+  { value: "culture", labelKey: "culture" },
+  { value: "outdoors", labelKey: "outdoors" },
 ];
 
 interface ConciergeFilterSheetProps {
@@ -48,6 +49,8 @@ export function ConciergeFilterSheet({
   onApply,
   hasFavoriteNeighborhoods = false,
 }: ConciergeFilterSheetProps) {
+  const t = useTranslations("conciergeFilters");
+
   if (!open) return null;
 
   const appliedCount = [
@@ -60,11 +63,11 @@ export function ConciergeFilterSheet({
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-[min(320px,100%)] bg-surface border-l border-[rgba(148,163,184,0.25)] shadow-card-soft flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-[rgba(148,163,184,0.25)]">
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-[min(320px,100%)] bg-surface border-l border-border-app shadow-card-soft flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-border-app">
           <div className="flex items-center gap-2">
             <Filter className="w-5 h-5 text-muted-foreground" />
-            <h2 className="font-semibold">Concierge filters</h2>
+            <h2 className="font-semibold">{t("title")}</h2>
           </div>
           <button type="button" onClick={onClose} className="p-2 -m-2 text-muted-foreground hover:text-foreground">
             <X className="w-5 h-5" />
@@ -72,7 +75,7 @@ export function ConciergeFilterSheet({
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Day / Time</p>
+            <p className="text-xs font-medium text-muted-foreground mb-2">{t("dayTime")}</p>
             <div className="flex flex-wrap gap-2">
               {TIME_OPTIONS.map((o) => (
                 <button
@@ -81,31 +84,31 @@ export function ConciergeFilterSheet({
                   onClick={() => onFiltersChange({ ...filters, timeContext: o.value })}
                   className={cn(
                     "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                    filters.timeContext === o.value ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                    filters.timeContext === o.value ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
-                  {o.label}
+                  {t(o.labelKey)}
                 </button>
               ))}
             </div>
           </div>
           {hasFavoriteNeighborhoods && (
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Area</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">{t("area")}</p>
               <button
                 type="button"
                 onClick={() => onFiltersChange({ ...filters, favoriteNeighborhoodsOnly: !filters.favoriteNeighborhoodsOnly })}
                 className={cn(
                   "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                  filters.favoriteNeighborhoodsOnly ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                  filters.favoriteNeighborhoodsOnly ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                 )}
               >
-                Favorite neighborhoods only
+                {t("favoriteNeighborhoodsOnly")}
               </button>
             </div>
           )}
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Radius</p>
+            <p className="text-xs font-medium text-muted-foreground mb-2">{t("radius")}</p>
             <div className="flex flex-wrap gap-2">
               {RADIUS_OPTIONS.map((o) => (
                 <button
@@ -114,7 +117,7 @@ export function ConciergeFilterSheet({
                   onClick={() => onFiltersChange({ ...filters, radius: o.value })}
                   className={cn(
                     "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                    filters.radius === o.value ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                    filters.radius === o.value ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
                   {o.label}
@@ -123,7 +126,7 @@ export function ConciergeFilterSheet({
             </div>
           </div>
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Type</p>
+            <p className="text-xs font-medium text-muted-foreground mb-2">{t("type")}</p>
             <div className="flex flex-wrap gap-2">
               {TYPE_OPTIONS.map((o) => (
                 <button
@@ -132,7 +135,7 @@ export function ConciergeFilterSheet({
                   onClick={() => onFiltersChange({ ...filters, typeGroup: o.value })}
                   className={cn(
                     "text-sm font-medium px-3 py-1.5 rounded-[10px] transition-colors touch-manipulation",
-                    filters.typeGroup === o.value ? "bg-tab-selected text-[#E5E7EB]" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
+                    filters.typeGroup === o.value ? "bg-tab-selected text-tab-selected-fg" : "bg-surface-alt text-muted-foreground hover:bg-surface hover:text-foreground"
                   )}
                 >
                   {o.label}
@@ -141,13 +144,13 @@ export function ConciergeFilterSheet({
             </div>
           </div>
         </div>
-        <div className="p-4 border-t border-[rgba(148,163,184,0.25)]">
+        <div className="p-4 border-t border-border-app">
           <button
             type="button"
             onClick={() => { onApply(); onClose(); }}
             className="w-full rounded-[14px] bg-accent-cyan py-3 text-sm font-medium text-white hover:bg-accent-cyan/90 transition-colors touch-manipulation"
           >
-            Apply {appliedCount > 0 ? `(${appliedCount})` : ""}
+            {t("apply")} {appliedCount > 0 ? `(${appliedCount})` : ""}
           </button>
         </div>
       </div>

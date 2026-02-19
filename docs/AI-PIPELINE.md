@@ -154,8 +154,10 @@ Which filters work without AI enrichment vs need it:
 
 ## 4. Place Enrichment (Post-Ingest) — MVP
 
+**Two-stage pipeline:** GPT-4o-mini + tips first; Perplexity (or Tavily+OpenAI) for gaps. Both scripts process all eligible highlights in one run (no per-run cap). See run order below.
+
 **Script:** `scripts/enrich-venues-ai.ts`  
-**Model:** GPT‑4o‑mini (batch, cheapest suitable option for short, structured text)
+**Model:** GPT‑4o‑mini (batch, 15 places per API call)
 
 **Separate batch layer:** Runs *after* ingest + scores. Does not block or couple to ingestion. Ingestion = coverage; enrichment = quality of descriptions and tags.
 
@@ -212,7 +214,8 @@ Which filters work without AI enrichment vs need it:
 - Only processes highlights whose venue has `fsq_tips` (from ingest or `fetch:venue-tips`).  
 - Skip highlights where `short_description` is already populated (idempotent).  
 - Use `--backfill` to re-process including already-enriched.  
-- Respect `MAX_AI_CALLS_PER_RUN` (500).
+- **No per-run cap** — processes all eligible highlights. Paginates (1000 rows/page) to work around Supabase limit.
+- **Safety cap:** `total active × 2` (max 10K), or `MAX_ENRICH_ITEMS` env override.
 
 ***
 
@@ -231,9 +234,9 @@ Which filters work without AI enrichment vs need it:
 
 - Only processes venues with no (or empty) `fsq_tips`.
 - **Priority:** 1) Perplexity Sonar (recommended), 2) Tavily + OpenAI, 3) OpenAI only (knowledge).
+- **No per-run cap** — processes all eligible highlights. Paginates (1000 rows/page).
+- **Safety cap:** `total active × 2` (max 5K), or `MAX_ENRICH_WEB_ITEMS` env override.
 - CLI: `npm run enrich:venues:ai:web [city-slug]`
-
-**Why Cadore Gelato Artigianale had no description:** It has tips but wasn’t in the first enrichment batch (500 cap). Re-run `enrich:venues:ai buenos-aires` to fix tip-rich places; use `enrich:venues:ai:web` only for places without tips.
 
 ***
 
@@ -386,8 +389,8 @@ For detailed pricing and model choices, see `COSTS.md`. Current defaults:
 
 - Hard-code per-job caps initially (to be wired to `admin_settings` later):
 
-  - `MAX_AI_CALLS_PER_RUN`  
-  - `MAX_AI_CALLS_PER_MONTH` (soft; log + alert if exceeded)
+  - Enrichment scripts: no per-run cap; process all eligible. Safety cap = total active × 2 (max 10K tip-based, 5K web). Override: `MAX_ENRICH_ITEMS`, `MAX_ENRICH_WEB_ITEMS`.
+  - `MAX_AI_CALLS_PER_MONTH` (soft; log + alert if exceeded) — future.
 
 - Always **batch** calls (N places per request) where possible.  
 - “Skip if populated” rule for enrichment jobs.  
@@ -437,10 +440,10 @@ The code-level pipeline is complete. To make it operational:
    npm run fetch:venue-tips buenos-aires
    ```
 
-3. **Run enrichment scripts** (in order):
+3. **Run enrichment scripts** (in order; both process all eligible highlights per run):
    ```bash
-   npm run enrich:venues:ai buenos-aires     # tip-rich places
-   npm run enrich:venues:ai:web buenos-aires # no-tip places (PERPLEXITY_API_KEY recommended; or TAVILY+OPENAI)
+   npm run enrich:venues:ai buenos-aires     # 04mini + tips → venues WITH tips
+   npm run enrich:venues:ai:web buenos-aires # Perplexity → venues WITHOUT tips
    npm run enrich:neighborhoods:ai buenos-aires
    ```
 

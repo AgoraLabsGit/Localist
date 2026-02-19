@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { useNeighborhoods } from "@/hooks/use-neighborhoods";
 import { cn } from "@/lib/utils";
 
 const CHIP_SELECTED = "bg-accent-cyan/25 text-foreground border-accent-cyan";
-const CHIP_UNSELECTED = "bg-transparent text-slate-400 border-[rgba(148,163,184,0.4)] hover:text-slate-300 hover:bg-slate-900/50";
+const CHIP_UNSELECTED = "bg-transparent text-muted-foreground border-border-medium hover:text-foreground hover:bg-surface-alt";
 const VISIBLE_INITIAL = 6;
 
 interface FavoritePrefs {
@@ -64,7 +65,10 @@ export function FavoriteNeighborhoodsSection() {
     save({ preferred_neighborhoods: next, primary_neighborhood_freeform: null });
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground font-body">Loading…</p>;
+  const t = useTranslations("common");
+  const tSettings = useTranslations("settings");
+
+  if (loading) return <p className="text-sm text-muted-foreground font-body">{t("loading")}</p>;
 
   const selected = prefs.preferred_neighborhoods;
   const unselected = neighborhoods.filter((n) => !prefs.preferred_neighborhoods.includes(n));
@@ -74,9 +78,9 @@ export function FavoriteNeighborhoodsSection() {
 
   return (
     <div className="space-y-4 font-body">
-      <h2 className="font-semibold text-foreground">Favorite Neighborhoods</h2>
+      <h2 className="font-semibold text-foreground">{tSettings("favoriteNeighborhoodsTitle")}</h2>
       <p className="text-sm text-muted-foreground">
-        Areas you like to explore. Used to filter and personalize your feed.
+        {tSettings("favoriteAreasDesc")}
       </p>
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -102,7 +106,7 @@ export function FavoriteNeighborhoodsSection() {
             prefs.primary_neighborhood_freeform ? CHIP_SELECTED : CHIP_UNSELECTED
           )}
         >
-          {prefs.primary_neighborhood_freeform ?? "Another neighborhood"}
+          {prefs.primary_neighborhood_freeform ?? t("anotherNeighborhood")}
         </button>
         <button
           type="button"
@@ -113,12 +117,12 @@ export function FavoriteNeighborhoodsSection() {
             prefs.preferred_neighborhoods.length === 0 && !prefs.primary_neighborhood_freeform ? CHIP_SELECTED : CHIP_UNSELECTED
           )}
         >
-          Clear all
+          {t("clearAll")}
         </button>
       </div>
       {unselected.length > 0 && (
         <>
-          <p className="text-xs text-muted-foreground">More options</p>
+          <p className="text-xs text-muted-foreground">{t("moreOptions")}</p>
           <div className="flex flex-wrap gap-1.5">
             {visibleUnselected.map((n) => (
               <button
@@ -140,17 +144,17 @@ export function FavoriteNeighborhoodsSection() {
           onClick={() => setShowMore(!showMore)}
           className="text-sm text-accent-cyan hover:underline font-medium"
         >
-          {showMore ? "Show less" : "Show more"}
+          {showMore ? t("showLess") : t("showMore")}
         </button>
       )}
       {showFreeform && (
-        <div className="space-y-2 pt-2 border-t border-[rgba(148,163,184,0.25)]">
+        <div className="space-y-2 pt-2 border-t border-border-app">
           <input
             type="text"
             value={freeformValue}
             onChange={(e) => setFreeformValue(e.target.value)}
-            placeholder="Type your neighborhood (optional)"
-            className="w-full rounded-[14px] border border-[rgba(148,163,184,0.4)] bg-slate-900 px-4 py-3 text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent-cyan/30"
+            placeholder={tSettings("neighborhoodPlaceholder")}
+            className="w-full rounded-[14px] border border-border-medium bg-surface px-4 py-3 text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent-cyan/30"
           />
           <div className="flex gap-2">
             <button

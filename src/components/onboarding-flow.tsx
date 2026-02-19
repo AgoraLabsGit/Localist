@@ -12,6 +12,7 @@
  */
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { SUPPORTED_CITIES } from "@/lib/cities";
 import { useCities, getClosestCity, type SupportedCity } from "@/hooks/use-cities";
 import { useNeighborhoods } from "@/hooks/use-neighborhoods";
@@ -20,88 +21,31 @@ import { cn } from "@/lib/utils";
 
 const TOTAL_STEPS = 7;
 
-const PERSONA_OPTIONS = [
-  { id: "local" as const, label: "I live here" },
-  { id: "nomad" as const, label: "I'm here long-term (1–6 months)" },
-  { id: "tourist" as const, label: "I'm visiting for a trip" },
-];
-
-const WEEKLY_OUTING_OPTIONS = [
-  { id: 1, label: "0–1 a week" },
-  { id: 2, label: "2–3 a week" },
-  { id: 3, label: "4–5 a week" },
-  { id: 4, label: "6+ a week" },
-];
-
+const PERSONA_OPTIONS = [{ id: "local" as const }, { id: "nomad" as const }, { id: "tourist" as const }];
+const WEEKLY_OUTING_OPTIONS = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
 const TIME_BLOCK_OPTIONS = [
-  { id: "weekday_evenings", label: "Weekday evenings" },
-  { id: "weekend_afternoons", label: "Weekend afternoons" },
-  { id: "weekend_evenings", label: "Weekend evenings" },
-  { id: "sunday_daytime", label: "Sunday daytime" },
+  { id: "weekday_evenings" as const },
+  { id: "weekend_afternoons" as const },
+  { id: "weekend_evenings" as const },
+  { id: "sunday_daytime" as const },
 ];
-
-const TYPICAL_GROUP_OPTIONS = [
-  { id: "solo" as const, label: "Usually solo" },
-  { id: "couple" as const, label: "With a partner" },
-  { id: "friends" as const, label: "With friends" },
-  { id: "mixed" as const, label: "It varies" },
-];
-
-const CATEGORY_OPTIONS = TYPE_GROUPS.flatMap((g) =>
-  g.types.map((id) => ({ id, label: formatFilterLabel(id), group: g.label }))
-);
-
-const VIBE_OPTIONS = [
-  { id: "solo_friendly", label: "Solo-friendly" },
-  { id: "group_friendly", label: "Group-friendly" },
-  { id: "date_night", label: "Date night" },
-  { id: "cozy", label: "Cozy" },
-  { id: "lively", label: "Lively" },
-];
-
-const TOURISTY_VS_LOCAL_OPTIONS = [
-  { id: "touristy_ok" as const, label: "Mostly touristy is fine" },
-  { id: "balanced" as const, label: "Mix of both" },
-  { id: "local_only" as const, label: "Prefer local / off the beaten path" },
-];
-
-const BUDGET_OPTIONS = [
-  { id: "cheap" as const, label: "Mostly cheap" },
-  { id: "mid" as const, label: "Mid-range" },
-  { id: "splurge" as const, label: "Happy to splurge sometimes" },
-];
-
-const DIETARY_OPTIONS = [
-  { id: "vegetarian", label: "Vegetarian" },
-  { id: "vegan", label: "Vegan" },
-  { id: "gluten_free", label: "Gluten-free" },
-];
-
-const ALCOHOL_OPTIONS = [
-  { id: "okay" as const, label: "I drink" },
-  { id: "lowkey" as const, label: "Sometimes / low-key" },
-  { id: "avoid" as const, label: "I avoid alcohol" },
-];
-
-const RADIUS_OPTIONS = [
-  { id: "near_home" as const, label: "Stay near home" },
-  { id: "few_barrios" as const, label: "A few neighborhoods" },
-  { id: "whole_city" as const, label: "Explore the whole city" },
-];
-
-const EXPLORATION_OPTIONS = [
-  { id: "favorites" as const, label: "Stick to favorites" },
-  { id: "balanced" as const, label: "Mix of both" },
-  { id: "adventurous" as const, label: "Always discovering new spots" },
-];
-
+const TYPICAL_GROUP_OPTIONS = [{ id: "solo" as const }, { id: "couple" as const }, { id: "friends" as const }, { id: "mixed" as const }];
+const VIBE_OPTIONS = [{ id: "solo_friendly" as const }, { id: "group_friendly" as const }, { id: "date_night" as const }, { id: "cozy" as const }, { id: "lively" as const }];
+const TOURISTY_VS_LOCAL_OPTIONS = [{ id: "touristy_ok" as const }, { id: "balanced" as const }, { id: "local_only" as const }];
+const BUDGET_OPTIONS = [{ id: "cheap" as const }, { id: "mid" as const }, { id: "splurge" as const }];
+const DIETARY_OPTIONS = [{ id: "vegetarian" as const }, { id: "vegan" as const }, { id: "gluten_free" as const }];
+const ALCOHOL_OPTIONS = [{ id: "okay" as const }, { id: "lowkey" as const }, { id: "avoid" as const }];
+const RADIUS_OPTIONS = [{ id: "near_home" as const }, { id: "few_barrios" as const }, { id: "whole_city" as const }];
+const EXPLORATION_OPTIONS = [{ id: "favorites" as const }, { id: "balanced" as const }, { id: "adventurous" as const }];
 const ACQUISITION_OPTIONS = [
-  { id: "instagram_tiktok", label: "Instagram / TikTok" },
-  { id: "friend", label: "Friend / word of mouth" },
-  { id: "whatsapp", label: "WhatsApp / group chat" },
-  { id: "search", label: "Search" },
-  { id: "other", label: "Other" },
+  { id: "instagram_tiktok" as const },
+  { id: "friend" as const },
+  { id: "whatsapp" as const },
+  { id: "search" as const },
+  { id: "other" as const },
 ];
+
+const CATEGORY_OPTIONS = TYPE_GROUPS.flatMap((g) => g.types.map((id) => ({ id, group: g.id })));
 
 function WhereStep({
   homeCity,
@@ -126,6 +70,8 @@ function WhereStep({
   cities: SupportedCity[];
   neighborhoods: string[];
 }) {
+  const tOnb = useTranslations("onboarding");
+  const tCommon = useTranslations("common");
   const [query, setQuery] = useState(homeCity);
   const [geoLoading, setGeoLoading] = useState(false);
   const onCityChangeRef = useRef(onCityChange);
@@ -166,21 +112,21 @@ function WhereStep({
     <>
       <div>
         <h2 className="text-2xl font-semibold text-center">
-          Let&apos;s find your city&apos;s best spots
+          {tOnb("title")}
         </h2>
-        <p className="text-muted-foreground text-center mt-2">Where are you right now?</p>
+        <p className="text-muted-foreground text-center mt-2">{tOnb("whereQuestion")}</p>
       </div>
       <div className="space-y-4">
         <div>
-          <p className="text-sm font-medium mb-2">City</p>
+          <p className="text-sm font-medium mb-2">{tOnb("city")}</p>
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search cities…"
+            placeholder={tOnb("cityPlaceholder")}
             className="w-full rounded-[14px] border border-border-app bg-surface-alt px-4 py-3 text-sm"
           />
-          {geoLoading && <p className="text-xs text-muted-foreground mt-1">Detecting…</p>}
+          {geoLoading && <p className="text-xs text-muted-foreground mt-1">{tCommon("detecting")}</p>}
           <div className="flex flex-wrap gap-2 mt-2">
             {filtered.slice(0, 8).map((c) => (
               <button
@@ -199,7 +145,7 @@ function WhereStep({
         </div>
         {homeCity && (
           <div>
-            <p className="text-sm font-medium mb-2">Which neighborhood do you live in?</p>
+            <p className="text-sm font-medium mb-2">{tOnb("homeNeighborhood")}</p>
             <div className="flex flex-wrap gap-2">
               {neighborhoods.map((n) => (
                 <button
@@ -222,14 +168,14 @@ function WhereStep({
                   !homeNeighborhood ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                 )}
               >
-                Not sure yet
+                {tCommon("notSureYet")}
               </button>
             </div>
           </div>
         )}
         {homeCity && neighborhoods.length > 0 && (
           <div>
-            <p className="text-sm font-medium mb-2">Favorite neighborhoods to explore? (optional)</p>
+            <p className="text-sm font-medium mb-2">{tOnb("favoriteNeighborhoods")}</p>
             <div className="flex flex-wrap gap-2">
               {neighborhoods.map((n) => (
                 <button
@@ -255,7 +201,7 @@ function WhereStep({
           disabled={!homeCity?.trim()}
           className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          Continue
+          {tOnb("continue")}
         </button>
       </div>
     </>
@@ -319,6 +265,9 @@ const defaultOnComplete = async (data: OnboardingData) => {
 };
 
 export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlowProps) {
+  const tOnb = useTranslations("onboarding");
+  const tPlaceTypes = useTranslations("placeTypes");
+  const tSettings = useTranslations("settings");
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>(DEFAULT_DATA);
   const [saving, setSaving] = useState(false);
@@ -446,8 +395,8 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
         {step === 1 && (
           <>
             <div>
-              <h2 className="text-lg font-semibold">What best describes you in this city?</h2>
-              <p className="text-sm text-muted-foreground mt-1">Helps us tailor suggestions.</p>
+              <h2 className="text-lg font-semibold">{tOnb("personaStepTitle")}</h2>
+              <p className="text-sm text-muted-foreground mt-1">{tOnb("personaStepDesc")}</p>
             </div>
             <div className="space-y-2">
               {PERSONA_OPTIONS.map((o) => (
@@ -460,7 +409,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                     data.persona_type === o.id ? "border-primary bg-primary/10 text-primary" : "border-border-app hover:bg-surface-alt"
                   )}
                 >
-                  {o.label}
+                  {tOnb(`persona.${o.id}`)}
                 </button>
               ))}
             </div>
@@ -471,7 +420,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                 disabled={!data.persona_type}
                 className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                Next
+                {tOnb("next")}
               </button>
             </div>
           </>
@@ -480,11 +429,11 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
         {step === 2 && (
           <>
             <div>
-              <h2 className="text-lg font-semibold">When & how often do you go out?</h2>
-              <p className="text-sm text-muted-foreground mt-1">We&apos;ll tailor how many picks to show.</p>
+              <h2 className="text-lg font-semibold">{tOnb("whenStepTitle")}</h2>
+              <p className="text-sm text-muted-foreground mt-1">{tOnb("whenStepDesc")}</p>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">Weekly outings</p>
+              <p className="text-sm font-medium mb-2">{tOnb("weeklyOutingsLabel")}</p>
               <div className="flex flex-wrap gap-2">
                 {WEEKLY_OUTING_OPTIONS.map((o) => (
                   <button
@@ -496,13 +445,13 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.weekly_outing_target === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tOnb(`weeklyOutings.${o.id}`)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">When are you most likely to go out?</p>
+              <p className="text-sm font-medium mb-2">{tOnb("whenOutLabel")}</p>
               <div className="flex flex-wrap gap-2">
                 {TIME_BLOCK_OPTIONS.map((o) => (
                   <button
@@ -514,13 +463,13 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.preferred_time_blocks.includes(o.id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tOnb(`timeBlocks.${o.id}`)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">Usually going out with…</p>
+              <p className="text-sm font-medium mb-2">{tOnb("usuallyWithLabel")}</p>
               <div className="flex flex-wrap gap-2">
                 {TYPICAL_GROUP_OPTIONS.map((o) => (
                   <button
@@ -532,7 +481,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.typical_group_type === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tOnb(`typicalGroup.${o.id}`)}
                   </button>
                 ))}
               </div>
@@ -544,10 +493,10 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                 disabled={data.preferred_time_blocks.length === 0 && data.weekly_outing_target == null}
                 className="flex-1 rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                Next
+                {tOnb("next")}
               </button>
               <button type="button" onClick={handleSkip} className="px-4 py-3 text-sm text-muted-foreground hover:text-foreground">
-                Skip for now
+                {tOnb("skipForNow")}
               </button>
             </div>
           </>
@@ -556,11 +505,11 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
         {step === 3 && (
           <>
             <div>
-              <h2 className="text-lg font-semibold">What are you into?</h2>
-              <p className="text-sm text-muted-foreground mt-1">Pick categories you care about.</p>
+              <h2 className="text-lg font-semibold">{tOnb("interestsStepTitle")}</h2>
+              <p className="text-sm text-muted-foreground mt-1">{tOnb("interestsStepDesc")}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {CATEGORY_OPTIONS.map((o) => (
+                  {CATEGORY_OPTIONS.map((o: { id: string; group: string }) => (
                 <button
                   key={o.id}
                   type="button"
@@ -570,13 +519,13 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                     data.interests.includes(o.id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                   )}
                 >
-                  {o.label}
+                  {tPlaceTypes(o.id as any) || formatFilterLabel(o.id)}
                 </button>
               ))}
             </div>
             {data.interests.length > 0 && (
               <div>
-                <p className="text-sm font-medium mb-2">Pick up to 2 that matter most</p>
+                <p className="text-sm font-medium mb-2">{tOnb("pickUpTo2Label")}</p>
                 <div className="flex flex-wrap gap-2">
                   {data.interests.map((id) => (
                     <button
@@ -596,7 +545,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                         data.primary_categories.includes(id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                       )}
                     >
-                      {formatFilterLabel(id)}
+                      {tPlaceTypes.has(id) ? tPlaceTypes(id as any) : formatFilterLabel(id)}
                       {data.primary_categories.includes(id) ? " ★" : ""}
                     </button>
                   ))}
@@ -610,7 +559,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                 disabled={data.interests.length === 0}
                 className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                Next
+                {tOnb("next")}
               </button>
             </div>
           </>
@@ -619,11 +568,11 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
         {step === 4 && (
           <>
             <div>
-              <h2 className="text-lg font-semibold">Budget & vibe</h2>
-              <p className="text-sm text-muted-foreground mt-1">Fine-tune your picks.</p>
+              <h2 className="text-lg font-semibold">{tOnb("budgetVibeStepTitle")}</h2>
+              <p className="text-sm text-muted-foreground mt-1">{tOnb("budgetVibeStepDesc")}</p>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">Budget</p>
+              <p className="text-sm font-medium mb-2">{tOnb("budgetLabel")}</p>
               <div className="flex flex-wrap gap-2">
                 {BUDGET_OPTIONS.map((o) => (
                   <button
@@ -635,13 +584,13 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.budget_band === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tOnb(`budget.${o.id}`)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">Vibes</p>
+              <p className="text-sm font-medium mb-2">{tOnb("vibesLabel")}</p>
               <div className="flex flex-wrap gap-2">
                 {VIBE_OPTIONS.map((o) => (
                   <button
@@ -653,13 +602,13 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.vibe_tags_preferred.includes(o.id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tOnb(`vibe.${o.id}`)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">Touristy vs local?</p>
+              <p className="text-sm font-medium mb-2">{tSettings("touristyVsLocalPrefs.title")}</p>
               <div className="flex flex-wrap gap-2">
                 {TOURISTY_VS_LOCAL_OPTIONS.map((o) => (
                   <button
@@ -671,7 +620,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.touristy_vs_local_preference === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tOnb(`touristyVsLocal.${o.id}`)}
                   </button>
                 ))}
               </div>
@@ -682,7 +631,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                 onClick={handleNext}
                 className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
-                Next
+                {tOnb("next")}
               </button>
             </div>
           </>
@@ -691,11 +640,11 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
         {step === 5 && (
           <>
             <div>
-              <h2 className="text-lg font-semibold">Optional: constraints & exploration</h2>
-              <p className="text-sm text-muted-foreground mt-1">Change anytime in Settings.</p>
+              <h2 className="text-lg font-semibold">{tOnb("constraintsStepTitle")}</h2>
+              <p className="text-sm text-muted-foreground mt-1">{tOnb("constraintsStepDesc")}</p>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">Dietary</p>
+              <p className="text-sm font-medium mb-2">{tSettings("constraints.dietary")}</p>
               <div className="flex flex-wrap gap-2">
                 {DIETARY_OPTIONS.map((o) => (
                   <button
@@ -707,13 +656,13 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.dietary_flags.includes(o.id) ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tSettings(`constraints.${o.id}`)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">Alcohol</p>
+              <p className="text-sm font-medium mb-2">{tSettings("constraints.alcohol")}</p>
               <div className="flex flex-wrap gap-2">
                 {ALCOHOL_OPTIONS.map((o) => (
                   <button
@@ -725,13 +674,13 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.alcohol_preference === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tSettings(`constraints.${o.id}`)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">How far do you like to explore?</p>
+              <p className="text-sm font-medium mb-2">{tSettings("constraints.howFarToExplore")}</p>
               <div className="flex flex-wrap gap-2">
                 {RADIUS_OPTIONS.map((o) => (
                   <button
@@ -743,13 +692,13 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.radius_preference === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tOnb(`radius.${o.id}`)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">Stick to favorites or discover new spots?</p>
+              <p className="text-sm font-medium mb-2">{tSettings("constraints.discoverOrStick")}</p>
               <div className="flex flex-wrap gap-2">
                 {EXPLORATION_OPTIONS.map((o) => (
                   <button
@@ -761,7 +710,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                       data.exploration_style === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                     )}
                   >
-                    {o.label}
+                    {tOnb(`exploration.${o.id}`)}
                   </button>
                 ))}
               </div>
@@ -772,10 +721,10 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                 onClick={handleNext}
                 className="flex-1 rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
-                Next
+                {tOnb("next")}
               </button>
               <button type="button" onClick={handleSkip} className="px-4 py-3 text-sm text-muted-foreground hover:text-foreground">
-                Skip
+                {tOnb("skip")}
               </button>
             </div>
           </>
@@ -784,8 +733,8 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
         {step === 6 && (
           <>
             <div>
-              <h2 className="text-lg font-semibold">How did you hear about us?</h2>
-              <p className="text-sm text-muted-foreground mt-1">Helps us reach more people like you.</p>
+              <h2 className="text-lg font-semibold">{tOnb("acquisitionStepTitle")}</h2>
+              <p className="text-sm text-muted-foreground mt-1">{tOnb("acquisitionStepDesc")}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {ACQUISITION_OPTIONS.map((o) => (
@@ -798,7 +747,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                     data.acquisition_source === o.id ? "bg-primary text-primary-foreground" : "bg-surface-alt text-muted-foreground hover:bg-surface"
                   )}
                 >
-                  {o.label}
+                  {tOnb(`acquisition.${o.id}`)}
                 </button>
               ))}
             </div>
@@ -809,7 +758,7 @@ export function OnboardingFlow({ onComplete = defaultOnComplete }: OnboardingFlo
                 disabled={saving}
                 className="w-full rounded-[14px] bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                {saving ? "Setting up…" : "See my picks"}
+                {saving ? tOnb("settingUp") : tOnb("seeMyPicks")}
               </button>
             </div>
           </>

@@ -40,45 +40,45 @@ export function AccountPageClient({ userEmail }: { userEmail: string }) {
   return (
     <div className="space-y-6">
       {/* Membership - placeholder */}
-      <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
+      <div className="rounded-[20px] border border-border-app bg-surface p-4">
         <h2 className="font-semibold text-foreground">Membership</h2>
         <p className="text-sm text-muted-foreground mt-1">Manage your subscription and billing.</p>
         <button
           type="button"
           disabled
-          className="mt-3 w-full rounded-[14px] border border-[rgba(148,163,184,0.4)] px-4 py-2.5 text-sm font-medium text-muted-foreground cursor-not-allowed"
+          className="mt-3 w-full rounded-[14px] border border-border-medium px-4 py-2.5 text-sm font-medium text-muted-foreground cursor-not-allowed"
         >
           Manage membership (coming soon)
         </button>
       </div>
 
       {/* Login - placeholder */}
-      <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
+      <div className="rounded-[20px] border border-border-app bg-surface p-4">
         <h2 className="font-semibold text-foreground">Login</h2>
         <p className="text-sm text-muted-foreground mt-1">Connected accounts and sign-in options.</p>
         <button
           type="button"
           disabled
-          className="mt-3 w-full rounded-[14px] border border-[rgba(148,163,184,0.4)] px-4 py-2.5 text-sm font-medium text-muted-foreground cursor-not-allowed"
+          className="mt-3 w-full rounded-[14px] border border-border-medium px-4 py-2.5 text-sm font-medium text-muted-foreground cursor-not-allowed"
         >
           Manage login (coming soon)
         </button>
       </div>
 
       {/* Password */}
-      <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
+      <div className="rounded-[20px] border border-border-app bg-surface p-4">
         <h2 className="font-semibold text-foreground">Password</h2>
         <p className="text-sm text-muted-foreground mt-1">Reset your password via email.</p>
         <Link
           href="/auth/forgot-password"
-          className="mt-3 inline-block w-full rounded-[14px] border border-[rgba(148,163,184,0.4)] bg-slate-900 px-4 py-2.5 text-sm font-medium text-foreground hover:bg-slate-800 transition-colors text-center"
+          className="mt-3 inline-block w-full rounded-[14px] border border-border-medium bg-surface px-4 py-2.5 text-sm font-medium text-foreground hover:bg-surface-alt transition-colors text-center"
         >
           Reset password
         </Link>
       </div>
 
       {/* Email */}
-      <div className="rounded-[20px] border border-[rgba(148,163,184,0.25)] bg-surface p-4">
+      <div className="rounded-[20px] border border-border-app bg-surface p-4">
         <h2 className="font-semibold text-foreground">Email</h2>
         <p className="text-sm text-muted-foreground mt-1">Your email address. A confirmation link will be sent to the new address.</p>
 
@@ -106,7 +106,7 @@ export function AccountPageClient({ userEmail }: { userEmail: string }) {
                 onChange={(e) => setNewEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="w-full rounded-[14px] border border-[rgba(148,163,184,0.4)] bg-slate-900 px-4 py-3 text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent-cyan/30"
+                className="w-full rounded-[14px] border border-border-medium bg-surface px-4 py-3 text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent-cyan/30"
               />
             </div>
             <div>
@@ -118,7 +118,7 @@ export function AccountPageClient({ userEmail }: { userEmail: string }) {
                 onChange={(e) => setConfirmEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="w-full rounded-[14px] border border-[rgba(148,163,184,0.4)] bg-slate-900 px-4 py-3 text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent-cyan/30"
+                className="w-full rounded-[14px] border border-border-medium bg-surface px-4 py-3 text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent-cyan/30"
               />
             </div>
             {emailError && <p className="text-sm text-destructive">{emailError}</p>}

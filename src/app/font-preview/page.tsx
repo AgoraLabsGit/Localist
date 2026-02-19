@@ -44,7 +44,7 @@ const PLAYFUL_FONTS = [
 export default function FontPreviewPage() {
   return (
     <main className="min-h-screen bg-app">
-      <header className="sticky top-0 z-50 bg-app border-b border-[rgba(148,163,184,0.25)]">
+      <header className="sticky top-0 z-50 bg-app border-b border-border-app">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <Link
             href="/"
@@ -85,7 +85,7 @@ export default function FontPreviewPage() {
               </div>
             ))}
           </div>
-          <div className="rounded-[14px] border border-[rgba(148,163,184,0.25)] bg-surface p-4 mt-4">
+          <div className="rounded-[14px] border border-border-app bg-surface p-4 mt-4">
             <p className="text-xs text-muted-foreground mb-3">Favorites in header context</p>
             <div className="space-y-3">
               {FAVORITES.map((font) => (
@@ -111,7 +111,7 @@ export default function FontPreviewPage() {
             {BRAND_VIBES.map((font) => (
               <div
                 key={font.id}
-                className="rounded-[14px] border border-[rgba(148,163,184,0.25)] bg-surface p-5"
+                className="rounded-[14px] border border-border-app bg-surface p-5"
               >
                 <div
                   className={`text-2xl sm:text-3xl font-semibold text-foreground tracking-tight mb-2 ${font.id === "anton" ? "uppercase tracking-wider" : ""}`}
@@ -134,7 +134,7 @@ export default function FontPreviewPage() {
             {SCRIPT_FONTS.map((font) => (
               <div
                 key={font.id}
-                className="rounded-[14px] border border-[rgba(148,163,184,0.25)] bg-surface p-5"
+                className="rounded-[14px] border border-border-app bg-surface p-5"
               >
                 <div
                   className="text-2xl sm:text-3xl font-normal text-foreground mb-2"
@@ -157,7 +157,7 @@ export default function FontPreviewPage() {
             {PLAYFUL_FONTS.map((font) => (
               <div
                 key={font.id}
-                className="rounded-[14px] border border-[rgba(148,163,184,0.25)] bg-surface p-5"
+                className="rounded-[14px] border border-border-app bg-surface p-5"
               >
                 <div
                   className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight mb-2"

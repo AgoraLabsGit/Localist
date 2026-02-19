@@ -11,6 +11,10 @@
 
 You should treat these three as the only priorities until they are done.
 
+**Foursquare cost guardrail:** Do not run Foursquare API calls or FSQ-based ingestions until they are 100% necessary. FSQ has been our main cost driver. Lock in Google ingestion (discovery, profiles, coverage) first. Resume FSQ only when the Google-side pipeline is validated and FSQ is genuinely required.
+
+**Design constraint (wide net → filter down):** Start with **Google-wide, cafe-only** (rating ≥ 4.0, more inclusive categories), verify neighborhood coverage in the DB, and only then turn on Foursquare + AI for that subset.
+
 ### Validation checklist
 
 When validating cost tracking, Admin Usage dashboard, pipeline run logging, or AI enrichment fixes:
@@ -39,6 +43,8 @@ The pipeline must deliver **good coverage across all categories and neighborhood
 - **No per-category discovery tuning** — Same patterns used for cafes, parrillas, bars, restaurants, etc., even when some need different approaches.
 - **Edge cases filtered out** — Known places that fail the rating gate are dropped with no override.
 - **Canonical key merge** — Previously merged distinct venues at the same address; fixed in migration 041.
+
+**New principle:** Instead of starting with an over‑narrow discovery net and widening it incrementally (which has driven up costs and still missed coverage), we will pivot to a **wide‑net first** strategy on Google (broader category/types, rating ≥ 4.0) and then **filter down in our own pipeline** before hitting Foursquare or AI.
 
 **What we've done:**
 
@@ -93,12 +99,15 @@ npm run ingest:places:typed -- <city-slug> --force --incremental
 
 Never drop `--force` for live cities. See [DATA-PIPELINE](DATA-PIPELINE.md) §Guardrails.
 
+**Note:** Per the Foursquare cost guardrail (Current focus), avoid full ingest runs that trigger FSQ until Google ingestion is locked in. Use `--category` and harness/testing to validate discovery first; only run FSQ when necessary.
+
 ### 0.2 Cafe discovery (BA) — finalize and freeze
 
-- Strategy:
-  - Tiles: `type=cafe` + text `"café"` (minimal profile).
-  - Neighborhood: "café {neighborhood}" (e.g. "café Villa Urquiza") as supplemental queries.
-  - Avoid `best-city`, `city-no-best`, and `type-only` for cafes.
+- Strategy (wide net → filter down):
+  - Tiles: `type=cafe` + text `"café"` (minimal profile) with **Google-side rating floor around 4.0** to get a broad set of candidates.
+  - Neighborhood: "café {neighborhood}" (e.g. "café Villa Urquiza") as supplemental queries to pull in local anchors.
+  - Avoid over‑restrictive queries like `best-city` / `city-no-best` and `type-only` for cafes.
+  - Apply our stricter **pipeline gates** (e.g. 4.1★ / 6+ reviews) and **anchor overrides** after ingesting from Google, not inside the Google query.
 - Tools:
   - `test-google-discovery.ts` harness with JSON logs in `scripts/test-results/`.
   - `GOOGLE_DISCOVERY_PROFILES.cafe` wired to `minimal`.
@@ -106,6 +115,7 @@ Never drop `--force` for live cities. See [DATA-PIPELINE](DATA-PIPELINE.md) §Gu
 - Remaining work:
   - Add `must_have_place_ids` anchor list for BA cafés (e.g. Chicama Andonaegui).
   - Ensure anchors bypass rating gate while the global gate stays at 4.1★ / 6+.
+  - Define simple **coverage benchmarks** for cafes (e.g. minimum cafe counts per key neighborhood like Villa Urquiza, Nuñez, Coghlan, Villa Ortúzar) and ensure these are met using Google-only ingest before running Foursquare tips or AI enrichment for that category.
   - Run cafe-only ingest and record:
     - Cafe counts per neighborhood.
     - Presence of anchors (Crisol, Dorina, Porta negra, Bilbo, Chicama).
@@ -124,10 +134,13 @@ Extend the harness and profiles beyond cafes (see 0.0 "What's missing" and "Next
 For each group:
 
 1. **Generalize the harness** — Run strategies per category on problem/control tiles.
-2. **Select profile** — Compare query strategies; choose tile profile + neighborhood queries.
+2. **Select wide‑net profile** — For each category, choose a tile + neighborhood profile that:
+   - Uses inclusive Google discovery (broader types/text + rating floor around 4.0).
+   - Defers stricter filtering to our own gates and anchor logic.
 3. **Add anchors** — Optional `must_have_place_ids` only for true anchors (bypass gate).
 4. **Wire into ingest** — Add to city config, `city_categories`, `GOOGLE_DISCOVERY_PROFILES`.
-5. **Collect metrics** — Before/after counts by category and neighborhood; iterate.
+5. **Set coverage benchmarks before FSQ/AI** — For each category, define per‑neighborhood coverage targets and confirm they are met with Google-only ingest before running Foursquare tips and AI enrichment for that category.
+6. **Collect metrics** — Before/after counts by category and neighborhood; iterate.
 
 ### 0.4 City onboarding automation (future)
 
@@ -148,6 +161,8 @@ Full docs: [AI-PIPELINE](AI-PIPELINE.md).
 
 ### 1.1 Place enrichment (venues)
 
+Enrichment scripts should run **only after** the ingestion pipeline has reached its coverage benchmarks for a city/category (wide‑net Google ingest + internal filtering). Do not use AI to compensate for missing venues.
+
 - Inputs:
   - `fsq_tips` (JSONB) and `fsq_tips_fetched_at` on `venues`.
   - Google/FSQ types, rating, rating_count, existing `avg_expected_price`.
@@ -163,12 +178,14 @@ Full docs: [AI-PIPELINE](AI-PIPELINE.md).
 - JSON handling:
   - Strip markdown (`**bold**`, code fences) before `JSON.parse` in both enrichment scripts.
 
+**Pipeline flow:** GPT-4o-mini + tips first, then Perplexity (or Tavily+OpenAI) for gaps. Both scripts now process all eligible highlights (no per-run cap).
+
 **Run order (per city):**
 
 ```bash
 npm run fetch:venue-tips <city>
-npm run enrich:venues:ai <city>
-npm run enrich:venues:ai:web <city>
+npm run enrich:venues:ai <city>      # 04mini + FSQ tips → venues WITH tips
+npm run enrich:venues:ai:web <city>  # Perplexity/Tavily → venues WITHOUT tips
 npm run fetch:venue-photos
 npm run enrich:neighborhoods:ai <city>
 ```
@@ -193,6 +210,59 @@ npm run enrich:neighborhoods:ai <city>
   - Re-run the enrichment pipeline in order.
 - If a neighborhood has 0 highlights:
   - Re-run ingest with `--force --incremental` and ensure neighborhood queries include it (e.g. `"best cafe Villa Urquiza"` in `neighborhoodQueries`).
+
+### 1.4 AI model tuning (no fine-tuning for now)
+
+- **Perplexity:** No fine-tuning available; use better prompts and presets.
+- **GPT-4o-mini:** Fine-tuning possible but not worth it at current scale. Prefer prompt refinement, few-shot examples, and `response_format: { type: "json_object" }` for consistent output.
+- Revisit fine-tuning when we have 10+ cities or 50K+ venues with persistent quality issues.
+
+### 1.5 AI enrichment audit
+
+- **Coverage:** Count highlights with vs without `short_description`, `vibe_tags`, `concierge_rationale` by category and neighborhood.
+- **Source split:** Tip-based (04mini) vs web-based (Perplexity) enrichment; identify neighborhoods/categories where tips are sparse.
+- **Quality spot-checks:** Sample descriptions for tone, accuracy, and vibe_tag consistency.
+- **Cost alignment:** Match `pipeline_runs` and `api_costs` to runs; ensure Perplexity usage is justified for no-tip venues.
+- **Tools:** Extend `check-neighborhood` or add `check-enrichment` script for city-wide stats.
+
+### 1.6 Multilingual place descriptions (ES, PT)
+
+**Goal:** Store translated `short_description` and `concierge_rationale` so place content matches the user's locale (i18n). No patchy or runtime translations.
+
+**Schema:**
+
+- Add to `highlights`:
+  - `short_description_es`, `short_description_pt` (TEXT)
+  - `concierge_rationale_es`, `concierge_rationale_pt` (TEXT)
+- Keep `short_description` and `concierge_rationale` as EN (default/fallback).
+
+**Model choice (quality over cost for translations):**
+
+- **Avoid:** GPT-4o-mini for translation — tends toward patchy, inconsistent output for ES/PT.
+- **Preferred options:**
+  - **GPT-4o** (full): Strong multilingual; single prompt can output EN + ES + PT in one call.
+  - **Claude (Haiku or Sonnet):** Excellent Spanish/Portuguese; good for translation-only pass.
+  - **DeepL API:** Dedicated translation; highest consistency and fluency; add as provider in `api_costs`.
+- **Recommendation:** Use GPT-4o or Claude for the translation step; benchmark quality on a sample before committing. If results are still uneven, add DeepL as a dedicated translation layer.
+
+**Implementation:**
+
+1. **Enrichment scripts:** Extend `enrich-venues-ai.ts` and `enrich-venues-ai-web.ts`:
+   - Option A: Single prompt — ask model to output EN, ES, PT in one JSON call.
+   - Option B: Two-pass — generate EN first, then run a translation-only pass (EN → ES, EN → PT) with the chosen model.
+2. **Read path:** All feeds, place detail, and Concierge pick the locale column (e.g. `short_description_es` for `es`) with fallback to EN when null.
+3. **Backfill script:** `enrich:venues:translate` or similar — translate existing highlights that have EN but missing ES/PT; batch by locale to control cost.
+4. **Neighborhood guides:** Consider `city_neighborhoods.description_es`, `description_pt` in a later pass if guides are user-facing.
+
+**Run order (per city, after enrichment):**
+
+```bash
+npm run enrich:venues:ai <city>
+npm run enrich:venues:ai:web <city>
+npm run enrich:venues:translate <city>   # new: backfill ES/PT from EN
+```
+
+**Principles:** Batch-only; no runtime translation API calls. Store once, read by locale.
 
 ---
 
@@ -298,6 +368,8 @@ Ensure existing fields are wired: `persona_type`, `home_neighborhood`, `preferre
 
 **Goal:** Make Highlights/Explore feel curated and lightly personal.
 
+**Bug fix:** Explore → Neighborhoods currently shows places (venues) instead of neighborhoods (barrios). Fix: Surface neighborhoods as the primary entity—neighborhood cards with guides/counts that link to place lists—not a flat list of places.
+
 ### 4.1 Shared highlight scoring
 
 - Add `src/lib/highlights-scoring.ts` with:
@@ -384,6 +456,41 @@ Ensure existing fields are wired: `persona_type`, `home_neighborhood`, `preferre
   - Batch set generation.
   - Dedup helpers.
   - Data quality analyzers.
+
+---
+
+## Post-MVP backlog (Phase 2+)
+
+Tasks that fall outside immediate MVP context. Prioritize when core loop is solid.
+
+### Data & AI
+
+- **Grid size logic** — AI vs API for setting city grid. Prefer larger grid than rerun ingestion; filter down later. Avoid reruns to control API costs.
+- **Periodic ingestion refresh** — Monthly or quarterly refresh so DB stays up to date with Google + Foursquare (evaluate cadence vs cost).
+- **Custom categories via AI** — City-specific categories generated by AI.
+- **Audit Google/FourSquare types and categories** — Ensure type mapping and category usage are correct and efficient.
+
+### Maps & exploration
+
+- **Add map view** — Map-based browse of venues/neighborhoods.
+- **Exploration map** — Map of visited places or neighborhoods, color-coded by how much has been explored.
+- **Demographics / location-intelligence API** — Integrate external demographics or location data where useful.
+
+### UI
+
+- **PWA** — `manifest.json`, icons, install test (see Phase 6).
+- **Fix search bar bugs** — Resolve known issues in search.
+- **Language settings** — Add Spanish (and i18n foundation).
+- **Google Maps Saved import** — Support import from Google Maps Saved lists via Google Takeout file upload.
+
+### Onboarding & Concierge
+
+- **Onboarding data storage** — Ensure onboarding responses are stored appropriately in `user_preferences`.
+- **Guided tours with Maps links** — Multi-stop tours with Maps integration (see Phase 7).
+
+### Content
+
+- **Blog / article links** — Tie articles or blog posts to venues (see Phase 7).
 
 ---
 

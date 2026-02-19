@@ -4,10 +4,60 @@
 
 @layer base {
   :root {
-    /* Design tokens: neutral, desaturated, dark-mode + mobile friendly */
+    /* Light theme (default when no .dark class) */
+    --app: #f8fafc;
+    --page: #f1f5f9;
+    --surface: #ffffff;
+    --surface-alt: #f1f5f9;
+    --surface-elevated: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
+    --accent-steel: #64748b;
+    --accent-cyan: #0ea5e9;
+    --accent-success: #22c55e;
+    --accent-warning: #f59e0b;
+    --border-token: #e2e8f0;
+    --border-subtle: rgba(15, 23, 42, 0.08);
+    --border-app: rgba(15, 23, 42, 0.2);
+    --border-medium: rgba(15, 23, 42, 0.35);
+    --border-strong: rgba(15, 23, 42, 0.5);
+    --chip-bg: rgba(15, 23, 42, 0.08);
+    --chip-foreground: #0f172a;
+    --chip-user-border: rgba(15, 23, 42, 0.3);
+    --tab-selected: #0f172a;
+    --tab-selected-fg: #f8fafc;
+    --tab-indicator: #0ea5e9;
+    --card-soft-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+
+    /* Shadcn semantics → light theme */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 98%;
+    --card-foreground: 222 47% 11%;
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 20% 35%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 199 89% 48%;
+    --radius: 0.875rem;
+  }
+
+  .dark {
+    /* Dark theme (current design) */
     --app: #020617;
-    --surface: #0f172a;
-    --surface-alt: #1e293b;
+    --page: #020819;
+    --surface: #0b1120;
+    --surface-alt: #0f172a;
+    --surface-elevated: #1e293b;
     --text-primary: #f9fafb;
     --text-secondary: #e5e7eb;
     --text-muted: #94a3b8;
@@ -17,20 +67,22 @@
     --accent-warning: #f59e0b;
     --border-token: #1e293b;
     --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-app: rgba(148, 163, 184, 0.25);
+    --border-medium: rgba(148, 163, 184, 0.4);
+    --border-strong: rgba(148, 163, 184, 0.6);
     --chip-bg: rgba(148, 163, 184, 0.18);
+    --chip-foreground: #e5e7eb;
     --chip-user-border: rgba(148, 163, 184, 0.5);
+    --tab-selected: #020819;
+    --tab-selected-fg: #e5e7eb;
+    --tab-indicator: #0ea5e9;
+    --card-soft-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 
-    /* Elevation & radius scale (native-ready) */
-    --radius-sm: 10px;
-    --radius-md: 14px;
-    --radius-lg: 20px;
-
-    /* Shadcn semantics → neutral dark theme */
+    /* Shadcn semantics → dark theme */
     --background: 222 47% 3%;
     --foreground: 210 40% 98%;
     --card: 222 47% 7%;
     --card-foreground: 210 40% 98%;
-    /* Primary = cyan for buttons, links */
     --primary: 199 89% 48%;
     --primary-foreground: 0 0% 100%;
     --secondary: 215 20% 65%;
@@ -44,7 +96,13 @@
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 199 89% 48%;
-    --radius: 0.875rem;
+  }
+
+  :root {
+    /* Elevation & radius scale (theme-agnostic) */
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
   }
 }
 

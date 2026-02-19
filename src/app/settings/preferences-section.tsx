@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { TYPE_GROUPS, formatFilterLabel } from "@/components/filter-sheet";
+import { useTranslations } from "next-intl";
+import { TYPE_GROUPS } from "@/components/filter-sheet";
 import { cn } from "@/lib/utils";
 
 const INTEREST_OPTIONS = TYPE_GROUPS.flatMap((g) => g.types);
 const CHIP_SELECTED = "bg-accent-cyan/25 text-foreground border-accent-cyan";
-const CHIP_UNSELECTED = "bg-transparent text-slate-400 border-[rgba(148,163,184,0.4)] hover:text-slate-300 hover:bg-slate-900/50";
+const CHIP_UNSELECTED = "bg-transparent text-muted-foreground border-border-medium hover:text-foreground hover:bg-surface-alt";
 
 const SUGGESTED_DEFAULTS = {
   interests: ["cafe", "parrilla", "cocktail_bar"] as string[],
@@ -21,9 +22,14 @@ interface Prefs {
 }
 
 export function PreferencesSection() {
+  const t = useTranslations("settings.preferences");
+  const tCommon = useTranslations("common");
+  const tTypes = useTranslations("placeTypes");
   const [prefs, setPrefs] = useState<Prefs>({ preferred_neighborhoods: [], interests: [], primary_categories: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const formatLabel = (id: string) => tTypes(id as any) || id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   useEffect(() => {
     fetch("/api/preferences")
@@ -89,7 +95,7 @@ export function PreferencesSection() {
     setSaving(false);
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground font-body">Loading…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground font-body">{tCommon("loading")}</p>;
 
   const selected = INTEREST_OPTIONS.filter((id) => prefs.interests.includes(id));
   const unselected = INTEREST_OPTIONS.filter((id) => !prefs.interests.includes(id));
@@ -98,9 +104,9 @@ export function PreferencesSection() {
     <div className="space-y-4 font-body">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="font-semibold text-foreground">Preferences</h2>
+          <h2 className="font-semibold text-foreground">{t("title")}</h2>
           <p className="text-sm text-muted-foreground">
-            Used for Concierge recommendations.
+            {t("usedForConcierge")}
           </p>
         </div>
         <button
@@ -109,11 +115,11 @@ export function PreferencesSection() {
           disabled={saving}
           className="text-xs text-accent-cyan hover:underline shrink-0"
         >
-          Reset to defaults
+          {t("resetToDefaults")}
         </button>
       </div>
       <div>
-        <p className="text-sm font-medium mb-2 text-foreground">Interests</p>
+        <p className="text-sm font-medium mb-2 text-foreground">{t("interests")}</p>
         {selected.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-3">
             {selected.map((id) => (
@@ -124,14 +130,14 @@ export function PreferencesSection() {
                 disabled={saving}
                 className={cn("text-sm font-body px-3 py-1.5 rounded-full border transition-colors", CHIP_SELECTED)}
               >
-                {formatFilterLabel(id)}
+                {formatLabel(id)}
               </button>
             ))}
           </div>
         )}
         {unselected.length > 0 && (
           <>
-            {selected.length > 0 && <p className="text-xs text-muted-foreground mb-2">More options</p>}
+            {selected.length > 0 && <p className="text-xs text-muted-foreground mb-2">{tCommon("moreOptions")}</p>}
             <div className="flex flex-wrap gap-1.5">
               {unselected.map((id) => (
                 <button
@@ -141,7 +147,7 @@ export function PreferencesSection() {
                   disabled={saving}
                   className={cn("text-sm font-body px-3 py-1.5 rounded-full border transition-colors", CHIP_UNSELECTED)}
                 >
-                  {formatFilterLabel(id)}
+                  {formatLabel(id)}
                 </button>
               ))}
             </div>
@@ -150,8 +156,8 @@ export function PreferencesSection() {
       </div>
       {selected.length > 0 && (
         <div>
-          <p className="text-sm font-medium mb-2 text-foreground">Top 2 that matter most</p>
-          <p className="text-xs text-muted-foreground mb-2">Pick up to 2 for stronger weighting.</p>
+          <p className="text-sm font-medium mb-2 text-foreground">{t("top2")}</p>
+          <p className="text-xs text-muted-foreground mb-2">{t("pickUpTo2")}</p>
           <div className="flex flex-wrap gap-1.5">
             {selected.map((id) => (
               <button
@@ -164,7 +170,7 @@ export function PreferencesSection() {
                   prefs.primary_categories.includes(id) ? CHIP_SELECTED : CHIP_UNSELECTED
                 )}
               >
-                {formatFilterLabel(id)}
+                {formatLabel(id)}
                 {prefs.primary_categories.includes(id) ? " ★" : ""}
               </button>
             ))}

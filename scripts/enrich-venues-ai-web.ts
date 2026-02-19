@@ -13,6 +13,7 @@
  *   - PERPLEXITY_API_KEY (Perplexity Sonar, built-in web search) — recommended
  *   - TAVILY_API_KEY + OPENAI_API_KEY (web search + gpt-4o-mini)
  *   - OPENAI_API_KEY only (knowledge-based, no live web)
+ * Processes all eligible highlights (no per-run cap). Cap: total active × 2 (max 5K), or MAX_ENRICH_WEB_ITEMS env.
  */
 
 import { config } from "dotenv";
@@ -25,8 +26,9 @@ const TAVILY_KEY = process.env.TAVILY_API_KEY;
 const PERPLEXITY_KEY = process.env.PERPLEXITY_API_KEY;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
-const MAX_AI_CALLS_PER_RUN = 200; // Lower cap; web search is more expensive
 const BATCH_DELAY_MS = 800;
+// Cap: total active highlights × 2 (safety buffer). Web search is expensive; cap prevents runaway.
+// Override via MAX_ENRICH_WEB_ITEMS env if needed.
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -191,23 +193,44 @@ async function main() {
 
   const cityName = city.cityFallbackName ?? city.name;
 
-  let q = supabase
+  const { count: totalActive } = await supabase
     .from("highlights")
-    .select("id, title, short_description, category, neighborhood, avg_expected_price, venue:venues(id, name, neighborhood, fsq_tips)")
+    .select("id", { count: "exact", head: true })
     .eq("city", cityName)
     .eq("status", "active");
 
-  if (!BACKFILL) q = q.is("short_description", null);
+  const total = totalActive ?? 2000;
+  const maxFetch = Math.min(Number(process.env.MAX_ENRICH_WEB_ITEMS) || total * 2, 5000);
+  const PAGE_SIZE = 1000;
 
-  const { data: highlights, error } = await q.limit(MAX_AI_CALLS_PER_RUN * 2);
+  const allHighlights: unknown[] = [];
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    let q = supabase
+      .from("highlights")
+      .select("id, title, short_description, category, neighborhood, avg_expected_price, venue:venues(id, name, neighborhood, fsq_tips)")
+      .eq("city", cityName)
+      .eq("status", "active")
+      .range(offset, offset + PAGE_SIZE - 1);
 
-  if (error) {
-    console.error("❌ Query failed:", error.message);
-    process.exit(1);
+    if (!BACKFILL) q = q.is("short_description", null);
+
+    const { data: page, error } = await q;
+    if (error) {
+      console.error("❌ Query failed:", error.message);
+      process.exit(1);
+    }
+    const rows = page ?? [];
+    allHighlights.push(...rows);
+    if (rows.length < PAGE_SIZE || allHighlights.length >= maxFetch) hasMore = false;
+    else offset += PAGE_SIZE;
   }
 
+  const highlights = allHighlights;
+
   // Only process venues with NO fsq_tips — internet fallback for tip-less places.
-  // (Tip-rich places like Cadore Gelato Artigianale: use enrich-venues-ai, which consumes tips.)
+  // (Tip-rich places: use enrich-venues-ai, which consumes tips.)
   const toEnrich = (highlights ?? []).filter((h) => {
     const v = Array.isArray(h.venue) ? h.venue[0] : h.venue;
     if (!v) return false;
@@ -215,7 +238,7 @@ async function main() {
     return !(Array.isArray(tips) && tips.length > 0);
   });
 
-  const batch = toEnrich.slice(0, MAX_AI_CALLS_PER_RUN);
+  const batch = toEnrich;
   console.log(
     `\n🌐 AI Enrichment (${mode}): ${city.name}\n   Processing ${batch.length} highlights without FSQ tips (of ${toEnrich.length})\n`
   );

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 /**
  * Universal 1-row filter chips for Highlights/Explore.
  * Horizontal scroll, tap to select/deselect. No "All" chips; reset (×) clears all.
@@ -9,21 +11,29 @@ import { cn } from "@/lib/utils";
 import type { ExploreCategory, ExploreTimeFilter, ExploreAreaFilter } from "@/lib/explore-categories";
 import { FAVORITE_NEIGHBORHOODS, NEAR_ME } from "./filter-sheet";
 
-/** Time chips: Today/Tonight/Weekend are mood filters (not yet filtering by actual hours). Open now omitted—opening_hours is sparse. */
-const TIME_LABELS: Record<Exclude<ExploreTimeFilter, "anytime">, string> = {
-  open_now: "Open now",
-  today: "Today",
-  tonight: "Tonight",
-  weekend: "Weekend",
+/** Time chips — keys map to translation keys */
+const TIME_KEYS: Record<Exclude<ExploreTimeFilter, "anytime">, string> = {
+  open_now: "openNow",
+  today: "today",
+  tonight: "tonight",
+  weekend: "weekend",
 };
 
-const AREA_LABELS: Record<Exclude<ExploreAreaFilter, "all">, string> = {
-  near_me: "Near me",
-  my_barrios: "My Neighborhoods",
+const AREA_KEYS: Record<Exclude<ExploreAreaFilter, "all">, string> = {
+  near_me: "nearMe",
+  my_barrios: "myNeighborhoods",
 };
 
 export type PriceFilter = "$" | "$$" | "$$$";
 export type VibeFilter = "cozy" | "lively" | "date_night" | "solo" | "group";
+
+const VIBE_KEYS: Record<VibeFilter, string> = {
+  cozy: "cozy",
+  lively: "lively",
+  date_night: "dateNight",
+  solo: "solo",
+  group: "group",
+};
 
 export interface HighlightsFilterState {
   time: ExploreTimeFilter | null;
@@ -31,14 +41,6 @@ export interface HighlightsFilterState {
   price: PriceFilter | null;
   vibe: VibeFilter | null;
 }
-
-const VIBE_LABELS: Record<VibeFilter, string> = {
-  cozy: "Cozy",
-  lively: "Lively",
-  date_night: "Date night",
-  solo: "Solo",
-  group: "Group",
-};
 
 /** Map UI vibe to DB vibe_tags value */
 const VIBE_TO_DB: Record<VibeFilter, string> = {
@@ -51,9 +53,9 @@ const VIBE_TO_DB: Record<VibeFilter, string> = {
 
 const CHIP_BASE =
   "shrink-0 text-[12px] px-2.5 py-1 rounded-[10px] font-medium transition-colors touch-manipulation";
-const CHIP_INACTIVE = "bg-chip text-[#E5E7EB] border border-transparent hover:bg-chip-user";
+const CHIP_INACTIVE = "bg-chip text-chip-foreground border border-transparent hover:bg-chip-user";
 const CHIP_ACTIVE = "bg-accent-cyan/25 text-accent-cyan border border-accent-cyan/50";
-const DIVIDER = "shrink-0 w-px h-4 bg-[rgba(148,163,184,0.3)]";
+const DIVIDER = "shrink-0 w-px h-4 bg-border-medium";
 
 interface FilterChipRowProps {
   filters: HighlightsFilterState;
@@ -62,6 +64,7 @@ interface FilterChipRowProps {
 }
 
 export function FilterChipRow({ filters, onFiltersChange, preferredNeighborhoods }: FilterChipRowProps) {
+  const t = useTranslations("filterChips");
   const timeOptions: (Exclude<ExploreTimeFilter, "anytime">)[] = ["today", "tonight", "weekend"];
   const areaOptions: (Exclude<ExploreAreaFilter, "all">)[] = preferredNeighborhoods.length > 0
     ? ["near_me", "my_barrios"]
@@ -93,7 +96,7 @@ export function FilterChipRow({ filters, onFiltersChange, preferredNeighborhoods
             onClick={() => toggleTime(v)}
             className={cn(CHIP_BASE, filters.time === v ? CHIP_ACTIVE : CHIP_INACTIVE)}
           >
-            {TIME_LABELS[v]}
+            {t(TIME_KEYS[v])}
           </button>
         ))}
         <div className={DIVIDER} aria-hidden />
@@ -104,7 +107,7 @@ export function FilterChipRow({ filters, onFiltersChange, preferredNeighborhoods
             onClick={() => toggleArea(v)}
             className={cn(CHIP_BASE, filters.area === v ? CHIP_ACTIVE : CHIP_INACTIVE)}
           >
-            {AREA_LABELS[v]}
+            {t(AREA_KEYS[v])}
           </button>
         ))}
         <div className={DIVIDER} aria-hidden />
@@ -126,7 +129,7 @@ export function FilterChipRow({ filters, onFiltersChange, preferredNeighborhoods
             onClick={() => toggleVibe(v)}
             className={cn(CHIP_BASE, filters.vibe === v ? CHIP_ACTIVE : CHIP_INACTIVE)}
           >
-            {VIBE_LABELS[v]}
+            {t(VIBE_KEYS[v])}
           </button>
         ))}
         </div>
@@ -140,7 +143,7 @@ export function FilterChipRow({ filters, onFiltersChange, preferredNeighborhoods
           "shrink-0 opacity-70 hover:opacity-100",
           hasAnyFilter ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/50"
         )}
-        aria-label="Reset filters"
+        aria-label={t("resetFilters")}
       >
         <X className="w-3.5 h-3.5" strokeWidth={2} />
       </button>
@@ -154,13 +157,14 @@ interface CategoryHeaderProps {
 }
 
 export function CategoryHeader({ category, cityName }: CategoryHeaderProps) {
+  const t = useTranslations("explore");
   if (!category) return null;
   return (
     <div>
       <h1 className="text-lg font-display font-semibold text-foreground">
-        {category.title} in {cityName}
+        {t(`categories.${category.id}`)} in {cityName}
       </h1>
-      <p className="text-[13px] text-muted-foreground mt-0.5">{category.subtitle}</p>
+      <p className="text-[13px] text-muted-foreground mt-0.5">{t(`${category.id}Blurb`)}</p>
     </div>
   );
 }

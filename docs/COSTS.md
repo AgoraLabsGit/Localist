@@ -28,9 +28,9 @@ $5/mo gross → ~$4.55 net (Stripe).
 
 ### AI (Phase 2)
 
-- **GPT-4o-mini** (enrich-venues-ai, tip-rich places): ~$0.0001/place; ~$0.15/1M input, ~$0.60/1M output tokens
+- **GPT-4o-mini** (enrich-venues-ai, tip-rich places): ~$0.0001/place; batches of 15. Processes all eligible per run.
 - **Claude Haiku**: ~$0.0008/place
-- **Perplexity Sonar** (enrich-venues-ai-web, no-tip places): ~$1/1M tokens + search fees (~$0.005/search). Web-sourced enrichment for venues without FSQ tips.
+- **Perplexity Sonar** (enrich-venues-ai-web, no-tip places): ~$1/1M tokens + search fees. 1 call per venue. Processes all no-tip venues per run (cap 5K).
 
 ---
 

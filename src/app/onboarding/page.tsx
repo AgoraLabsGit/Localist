@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingFlow } from "@/components/onboarding-flow";
 import { SkipOnboardingButton } from "@/components/skip-onboarding-button";
+import { OnboardingLanguagePicker } from "@/components/onboarding-language-picker";
 
 export default async function OnboardingPage() {
   const supabase = createClient();
@@ -22,10 +23,14 @@ export default async function OnboardingPage() {
 
   return (
     <main className="min-h-screen bg-app">
-      <header className="sticky top-0 z-50 bg-app border-b border-[rgba(148,163,184,0.25)]">
+      <header className="sticky top-0 z-50 bg-app border-b border-border-app">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-logo text-foreground">Localist</h1>
-          <SkipOnboardingButton />
+          <div className="flex items-center gap-4">
+            <OnboardingLanguagePicker />
+            <span className="w-px h-5 bg-border-medium" aria-hidden />
+            <SkipOnboardingButton />
+          </div>
         </div>
       </header>
       <div className="max-w-lg mx-auto px-4 py-8">

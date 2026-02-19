@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { validateCityFromDb } from "@/lib/cities-db";
@@ -43,7 +44,14 @@ export async function POST(req: Request) {
   const touristy_vs_local_preference =
     migrated.touristy_vs_local_preference ?? data.touristy_vs_local_preference ?? "balanced";
 
-  await supabase.from("users").update({ home_city: homeCity }).eq("id", user.id);
+  const store = await cookies();
+  const locale = store.get("locale")?.value;
+  const lang = locale && ["en", "es"].includes(locale) ? locale : "en";
+
+  await supabase
+    .from("users")
+    .update({ home_city: homeCity, language: lang })
+    .eq("id", user.id);
   const { error } = await supabase.from("user_preferences").upsert(
     {
       user_id: user.id,

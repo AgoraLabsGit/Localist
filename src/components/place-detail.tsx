@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { X, MapPin, Star, Clock, ExternalLink, Heart, Check, Copy, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -88,7 +89,7 @@ function parseOpeningHours(lines: string[]): HoursRow[] {
 
 /** Icon buttons — 32×32, dimmed outline so primary (Google Maps) stands out */
 const ACTION_BTN =
-  "inline-flex items-center justify-center size-[32px] min-w-[32px] min-h-[32px] rounded-[10px] border border-[rgba(148,163,184,0.25)] touch-manipulation transition-colors";
+  "inline-flex items-center justify-center size-[32px] min-w-[32px] min-h-[32px] rounded-[10px] border border-border-app touch-manipulation transition-colors";
 
 export interface PlaceDetailData {
   id: string;
@@ -161,6 +162,8 @@ export function PlaceDetail({
   onReject,
   isAuthenticated,
 }: PlaceDetailProps) {
+  const t = useTranslations("placeDetail");
+  const tCommon = useTranslations("common");
   const [data, setData] = useState<PlaceDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +196,7 @@ export function PlaceDetail({
         return res.json();
       })
       .then(setData)
-      .catch(() => setError("Could not load place details"))
+      .catch(() => setError(t("couldNotLoad")))
       .finally(() => setLoading(false));
   }, [highlightId]);
 
@@ -229,14 +232,14 @@ export function PlaceDetail({
       {/* Backdrop */}
       <button
         type="button"
-        aria-label="Close"
+        aria-label={tCommon("close")}
         className="absolute inset-0 bg-black/50 sm:bg-black/40"
         onClick={onClose}
       />
 
       {/* Drawer on mobile (slides up), centered modal on desktop */}
       <div
-        className="relative w-full max-w-lg bg-surface rounded-t-[20px] sm:rounded-[20px] border border-[rgba(148,163,184,0.25)] shadow-card-soft overflow-hidden flex flex-col h-[85vh] sm:h-auto sm:max-h-[90vh]"
+        className="relative w-full max-w-lg bg-surface rounded-t-[20px] sm:rounded-[20px] border border-border-app shadow-card-soft overflow-hidden flex flex-col h-[85vh] sm:h-auto sm:max-h-[90vh]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="place-detail-title"
@@ -247,10 +250,10 @@ export function PlaceDetail({
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]">
           {/* Header: title + rating + close */}
-          <div className="sticky top-0 z-10 flex items-start justify-between gap-2 px-4 py-3 bg-surface border-b border-[rgba(148,163,184,0.25)]">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-2 px-4 py-3 bg-surface border-b border-border-app">
             <div className="min-w-0 flex-1">
               <h2 id="place-detail-title" className="text-lg font-semibold truncate">
-                {data?.name ?? "Place Details"}
+                {data?.name ?? t("placeDetails")}
               </h2>
               {data && (data.rating != null || data.user_rating_count != null) && (
                 <div className="flex items-center gap-1.5 mt-0.5">
@@ -260,7 +263,7 @@ export function PlaceDetail({
                   </span>
                   {data.user_rating_count != null && (
                     <span className="text-xs text-muted-foreground">
-                      ({data.user_rating_count.toLocaleString()} reviews)
+                      ({data.user_rating_count.toLocaleString()} {t("reviews")})
                     </span>
                   )}
                 </div>
@@ -270,7 +273,7 @@ export function PlaceDetail({
               type="button"
               onClick={onClose}
               className="p-2 -m-2 rounded-full hover:bg-surface-alt transition-colors touch-manipulation shrink-0"
-              aria-label="Close"
+              aria-label={tCommon("close")}
             >
               <X className="w-5 h-5" />
             </button>
@@ -278,10 +281,10 @@ export function PlaceDetail({
 
           <div className="p-4 space-y-4">
             {loading && (
-              <div className="py-12 text-center text-muted-foreground">Loading…</div>
+              <div className="py-12 text-center text-muted-foreground">{t("loading")}</div>
             )}
             {error && (
-              <div className="py-12 text-center text-destructive">{error}</div>
+              <div className="py-12 text-center text-destructive">{t("couldNotLoad")}</div>
             )}
             {data && !loading && (
               <>
@@ -300,7 +303,7 @@ export function PlaceDetail({
                         className="inline-flex items-center justify-center gap-1 px-3 h-[32px] rounded-[10px] text-[12px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors touch-manipulation shrink-0"
                       >
                         <MapPin className="w-3 h-3" />
-                        Google Maps
+                        {t("googleMaps")}
                       </a>
                     )}
                     {showAppleMaps && appleMapsUrl && (
@@ -312,10 +315,10 @@ export function PlaceDetail({
                           e.preventDefault();
                           openUrl(appleMapsUrl!);
                         }}
-                        className="inline-flex items-center justify-center gap-1 px-3 h-[32px] rounded-[10px] text-[12px] font-medium border border-[rgba(148,163,184,0.3)] bg-transparent text-muted-foreground hover:text-foreground hover:bg-surface-alt transition-colors touch-manipulation shrink-0"
+                        className="inline-flex items-center justify-center gap-1 px-3 h-[32px] rounded-[10px] text-[12px] font-medium border border-border-medium bg-transparent text-muted-foreground hover:text-foreground hover:bg-surface-alt transition-colors touch-manipulation shrink-0"
                       >
                         <ExternalLink className="w-3 h-3" />
-                        Apple Maps
+                        {t("appleMaps")}
                       </a>
                     )}
                     {data.website && (
@@ -327,10 +330,10 @@ export function PlaceDetail({
                           e.preventDefault();
                           openUrl(data!.website!);
                         }}
-                        className="inline-flex items-center justify-center gap-1 px-3 h-[32px] rounded-[10px] text-[12px] font-medium border border-[rgba(148,163,184,0.3)] bg-transparent text-muted-foreground hover:text-foreground hover:bg-surface-alt transition-colors touch-manipulation shrink-0"
+                        className="inline-flex items-center justify-center gap-1 px-3 h-[32px] rounded-[10px] text-[12px] font-medium border border-border-medium bg-transparent text-muted-foreground hover:text-foreground hover:bg-surface-alt transition-colors touch-manipulation shrink-0"
                       >
                         <ExternalLink className="w-3 h-3" />
-                        Website
+                        {t("website")}
                       </a>
                     )}
                   </div>
@@ -360,8 +363,8 @@ export function PlaceDetail({
                           }
                         }}
                         className={cn(ACTION_BTN, "text-muted-foreground hover:text-foreground hover:border-white/30 active:bg-surface-alt/50")}
-                        title="Share"
-                        aria-label="Share"
+                        title={t("share")}
+                        aria-label={t("share")}
                       >
                         <Share2 className="w-4 h-4" />
                       </button>
@@ -381,8 +384,8 @@ export function PlaceDetail({
                               ? "border-red-500/40 bg-red-500/10 text-red-500"
                               : "text-muted-foreground hover:text-red-500 hover:border-red-500/30 active:bg-surface-alt/50"
                           )}
-                          title={saved ? "Unsave" : "Favorite"}
-                          aria-label={saved ? "Unsave" : "Save"}
+                          title={saved ? t("unsave") : t("favorite")}
+                          aria-label={saved ? t("unsave") : t("save")}
                         >
                           <Heart className={cn("w-4 h-4", saved && "fill-red-500")} />
                         </button>
@@ -405,8 +408,8 @@ export function PlaceDetail({
                               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
                               : "text-muted-foreground hover:text-emerald-500 hover:border-emerald-500/30 active:bg-surface-alt/50"
                           )}
-                          title={localVisited ? "Unmark visited" : "Visited"}
-                          aria-label={localVisited ? "Unmark visited" : "Mark visited"}
+                          title={localVisited ? t("unmarkVisited") : t("visited")}
+                          aria-label={localVisited ? t("unmarkVisited") : t("markVisited")}
                         >
                           <Check className={cn("w-4 h-4", localVisited && "stroke-[2.5]")} />
                         </button>
@@ -422,8 +425,8 @@ export function PlaceDetail({
                             ACTION_BTN,
                             "text-muted-foreground hover:text-foreground hover:border-white/30 active:bg-surface-alt/50"
                           )}
-                          title="Not this one"
-                          aria-label="Not this one"
+                          title={t("notThisOne")}
+                          aria-label={t("notThisOne")}
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -434,8 +437,8 @@ export function PlaceDetail({
                 {/* Rating — only when visited */}
                 {localVisited && onRatingChange && (
                   <section className="mt-4">
-                    <h3 className="text-sm font-medium text-foreground">Rate this place</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">Only you see your rating for now.</p>
+                    <h3 className="text-sm font-medium text-foreground">{t("rateThisPlace")}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("rateThisPlaceDesc")}</p>
                     <div className="mt-2 flex gap-1">
                       {[1, 2, 3, 4, 5].map((v) => (
                         <button
@@ -451,7 +454,7 @@ export function PlaceDetail({
                             });
                           }}
                           className="p-1 rounded-lg hover:bg-surface-alt transition-colors touch-manipulation"
-                          aria-label={`Rate ${v} stars`}
+                          aria-label={t("rateStars", { count: v })}
                         >
                           <Star
                             className={`w-8 h-8 ${
@@ -467,8 +470,8 @@ export function PlaceDetail({
                 {/* Your tags — with spacing above (separate from Actions) */}
                 {isAuthenticated && (
                   <section className="pt-2">
-                    <h3 className="text-sm font-medium text-foreground">Your tags</h3>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Add your own tags to find this later.</p>
+                    <h3 className="text-sm font-medium text-foreground">{t("yourTags")}</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{t("yourTagsDesc")}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {localTags.map((tag) => (
                         <button
@@ -486,7 +489,7 @@ export function PlaceDetail({
                               onTagsChange?.(next);
                             }
                           }}
-                          className="rounded-[10px] border border-chip-user px-2.5 py-1 text-xs text-[#94A3B8] hover:text-foreground hover:border-slate-400 transition-colors touch-manipulation shrink-0"
+                          className="rounded-[10px] border border-chip-user px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-border-medium transition-colors touch-manipulation shrink-0"
                         >
                           {tag}
                         </button>
@@ -494,9 +497,9 @@ export function PlaceDetail({
                       <button
                         type="button"
                         onClick={() => setTagInputOpen(true)}
-                        className="rounded-[10px] border border-dashed border-[rgba(148,163,184,0.4)] px-2.5 py-1 text-xs text-muted-foreground hover:border-white/20 hover:text-foreground transition-colors touch-manipulation shrink-0"
+                        className="rounded-[10px] border border-dashed border-border-medium px-2.5 py-1 text-xs text-muted-foreground hover:border-white/20 hover:text-foreground transition-colors touch-manipulation shrink-0"
                       >
-                        + Add tag
+                        {t("addTag")}
                       </button>
                     </div>
                     {tagInputOpen && (
@@ -523,7 +526,7 @@ export function PlaceDetail({
                         <input
                           value={tagInput}
                           onChange={(e) => setTagInput(e.target.value)}
-                          placeholder="e.g. first date, cozy"
+                          placeholder={t("tagPlaceholder")}
                           className="flex-1 rounded-[10px] border border-border-app bg-surface-alt px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                           autoFocus
                         />
@@ -531,7 +534,7 @@ export function PlaceDetail({
                           type="submit"
                           className="rounded-[10px] bg-primary px-3 py-1 text-xs text-primary-foreground hover:bg-primary/90 transition-colors"
                         >
-                          Add
+                          {t("add")}
                         </button>
                         <button
                           type="button"
@@ -541,7 +544,7 @@ export function PlaceDetail({
                           }}
                           className="rounded-[10px] border border-border-app px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-surface-alt transition-colors"
                         >
-                          Cancel
+                          {tCommon("cancel")}
                         </button>
                       </form>
                     )}
@@ -596,7 +599,7 @@ export function PlaceDetail({
                     <div>
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <Clock className="w-4 h-4 text-slate-400" />
-                        Hours
+                        {t("hours")}
                       </div>
                       <div className="mt-1.5 pl-6 space-y-[3px]">
                         {hoursRows.map((row, i) => (
@@ -607,7 +610,7 @@ export function PlaceDetail({
                               row.isToday ? "text-slate-100 font-medium" : "text-slate-400"
                             )}
                           >
-                            <span className="w-[70px] shrink-0 text-right">{row.dayLabel}</span>
+                            <span className="w-[70px] shrink-0 text-right">{row.dayLabel === "Hours" ? t("hours") : row.dayLabel}</span>
                             <span className="flex-1 text-left">{row.timeRange}</span>
                           </div>
                         ))}
@@ -621,7 +624,7 @@ export function PlaceDetail({
                   const waLink = `https://wa.me/${e164.replace(/^\+/, "")}`;
                   return (
                     <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="text-slate-500">Phone:</span>
+                      <span className="text-slate-500">{t("phone")}:</span>
                       <a href={`tel:${e164}`} className="text-foreground hover:underline">
                         {data.phone}
                       </a>
@@ -634,15 +637,15 @@ export function PlaceDetail({
                         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                         </svg>
-                        WhatsApp
+                        {t("whatsapp")}
                       </a>
                     </div>
                   );
                 })()}
 
                 {/* Footer: quiet attribution */}
-                <p className="pt-6 mt-6 border-t border-[rgba(148,163,184,0.2)] text-[11px] text-slate-500">
-                  Details from{" "}
+                <p className="pt-6 mt-6 border-t border-border-app text-[11px] text-slate-500">
+                  {t("detailsFrom")}{" "}
                   <a
                     href="https://foursquare.com"
                     target="_blank"
@@ -652,14 +655,14 @@ export function PlaceDetail({
                     Foursquare
                   </a>
                   {" • "}
-                  Maps from{" "}
+                  {t("mapsFrom")}{" "}
                   <a
                     href={googleMapsUrl ?? "https://maps.google.com"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-slate-500 hover:text-slate-400 hover:underline focus:underline"
                   >
-                    Google Maps
+                    {t("googleMaps")}
                   </a>
                 </p>
               </>
@@ -670,12 +673,12 @@ export function PlaceDetail({
         {/* Copy toasts */}
         {copyToast && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-2 rounded-lg bg-slate-700 text-slate-100 text-xs font-medium shadow-lg z-20">
-            Address copied
+            {t("addressCopied")}
           </div>
         )}
         {shareToast && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-2 rounded-lg bg-slate-700 text-slate-100 text-xs font-medium shadow-lg z-20">
-            Link copied – paste into WhatsApp or Messages
+            {t("linkCopied")}
           </div>
         )}
       </div>

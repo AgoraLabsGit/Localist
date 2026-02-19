@@ -70,7 +70,7 @@ Use this for coverage improvements on live cities. Do **not** run without `--for
 6. `npx tsx scripts/fetch-venue-photos.ts`
 7. `npm run fetch:venue-tips` [city] — tips for AI enrichment (optional; skips venues with fresh tips <90 days)
 8. `npm run compute:scores` [city]
-9. **AI enrichment (Phase 2, batch)** — Run after ingest + scores; separate from ingestion. `npm run enrich:venues:ai` [city] — processes highlights with `fsq_tips` that lack `short_description`. Idempotent. See [AI-PIPELINE](AI-PIPELINE.md), [ROADMAP](ROADMAP.md).
+9. **AI enrichment (Phase 2, batch)** — Run after ingest + scores; separate from ingestion. Two-stage: `npm run enrich:venues:ai` [city] (GPT-4o-mini + tips) then `npm run enrich:venues:ai:web` [city] (Perplexity for no-tip venues). Both process all eligible highlights (no per-run cap). Idempotent. See [AI-PIPELINE](AI-PIPELINE.md), [ROADMAP](ROADMAP.md).
 
 **Operational note:** Ingestion is about *coverage*; AI enrichment is about *quality of descriptions and tags*. Confirm coverage (e.g. Villa Urquiza cafés) before running enrichment.
 
@@ -81,7 +81,7 @@ Use this for coverage improvements on live cities. Do **not** run without `--for
 3. **Tips** — `npm run fetch:venue-tips buenos-aires` — Foursquare tips for AI enrichment. Main ingest skips FSQ for existing venues; this script backfills tips for venues with `foursquare_id` but missing/stale `fsq_tips`.
 4. **Scores** — `npm run compute:scores buenos-aires`
 5. **Coverage verification** — `SELECT v.neighborhood, h.category, COUNT(*) FROM highlights h JOIN venues v ON h.venue_id = v.id WHERE v.city = 'Buenos Aires' GROUP BY 1, 2 ORDER BY 1, 2` — confirm outer neighborhoods (e.g. Villa Urquiza) have ≥ target per category
-6. **AI enrichment** — `npm run enrich:venues:ai buenos-aires` (Phase 2; run after coverage confirmed)
+6. **AI enrichment** — `npm run enrich:venues:ai buenos-aires` then `npm run enrich:venues:ai:web buenos-aires` (Phase 2; run after coverage confirmed)
 
 **Refresh metadata:**
 - `ingestion_jobs` — per run: `source`, `finished_at`, `items_fetched`, `items_successful`. Use for city-level "last ingest" decisions.

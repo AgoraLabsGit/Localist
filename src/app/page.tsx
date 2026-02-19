@@ -3,6 +3,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic"; // Always fetch fresh highlights (AI enrichment, etc.)
 import { UserCircle } from "lucide-react";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { HighlightsFeed } from "@/components/highlights-feed";
 import { createClient } from "@/lib/supabase/server";
 import { getDefaultCityNameFromDb } from "@/lib/cities-db";
@@ -13,6 +14,7 @@ interface HomePageProps {
 }
 
 export default async function Home({ searchParams }: HomePageProps) {
+  const t = await getTranslations("common");
   const rawParams = typeof searchParams?.then === "function"
     ? await searchParams
     : (searchParams ?? {});
@@ -124,7 +126,7 @@ export default async function Home({ searchParams }: HomePageProps) {
   return (
     <main className="min-h-screen bg-app">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-app border-b border-[rgba(148,163,184,0.25)]">
+      <header className="sticky top-0 z-50 bg-app border-b border-border-app">
         <div className="max-w-lg mx-auto px-4 py-2.5 grid grid-cols-3 items-center">
           <h1 className="text-lg font-logo text-foreground">Localist</h1>
           <h2 className="text-[15px] sm:text-[17px] font-medium text-foreground text-center tracking-[-0.01em]">
@@ -133,7 +135,7 @@ export default async function Home({ searchParams }: HomePageProps) {
           <Link
             href={user ? "/settings" : "/auth/login?next=/"}
             className="text-muted-foreground hover:text-foreground justify-self-end p-1.5 -m-1.5 rounded-full transition-colors touch-manipulation"
-            aria-label={user ? "Settings" : "Sign in"}
+            aria-label={user ? t("settings") : t("signIn")}
           >
             <UserCircle className="w-6 h-6" strokeWidth={1.5} />
           </Link>
@@ -161,7 +163,7 @@ export default async function Home({ searchParams }: HomePageProps) {
           rel="noopener noreferrer"
           className="text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
-          Powered by Google Maps
+          {t("poweredByGoogleMaps")}
         </a>
       </footer>
     </main>

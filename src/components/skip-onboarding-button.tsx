@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 export function SkipOnboardingButton() {
+  const t = useTranslations("common");
   const [loading, setLoading] = useState(false);
 
   const handleSkip = async () => {
@@ -47,9 +49,9 @@ export function SkipOnboardingButton() {
       type="button"
       onClick={handleSkip}
       disabled={loading}
-      className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+      className="text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 py-2 px-1 -m-1 rounded-lg touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
     >
-      {loading ? "Skipping…" : "Skip"}
+      {loading ? t("skipping") : t("skip")}
     </button>
   );
 }

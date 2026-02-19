@@ -16,6 +16,7 @@ import {
   type HighlightsFilterState,
 } from "./highlights-filters";
 import { ConciergeFilterSheet, type ConciergeFilterState } from "./concierge-filter-sheet";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { toTitleCase } from "@/lib/neighborhoods";
 import type { Highlight } from "@/types/database";
@@ -511,13 +512,34 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
   }
 
   const displayList = activeTab === "My Places" ? yourPlacesFiltered : filtered;
+  const tNav = useTranslations("nav");
+  const tCommon = useTranslations("common");
+  const tExplore = useTranslations("explore");
+  const tFilters = useTranslations("filters");
+  const tConcierge = useTranslations("concierge");
+  const tMyPlaces = useTranslations("myPlaces");
+  const tPlaceTypes = useTranslations("placeTypes");
+  const tFilterChips = useTranslations("filterChips");
+
+  const handpickedTimeKey =
+    conciergeData?.time_filter === "tonight"
+      ? "tonight"
+      : conciergeData?.time_filter === "this_weekend"
+        ? "theWeekend"
+        : conciergeData?.time_filter === "this_week"
+          ? "thisWeek"
+          : conciergeData?.time_context === "sunday"
+            ? "sunday"
+            : conciergeData?.time_context === "weekend"
+              ? "theWeekend"
+              : "today";
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-14 z-40 -mx-4 px-4 pt-2 pb-2 bg-page border-b border-[rgba(148,163,184,0.25)]">
+      <div className="sticky top-14 z-40 -mx-4 px-4 pt-2 pb-2 bg-page border-b border-border-app">
         <TabNav active={activeTab} onTabChange={handleTabChange} />
         {activeTab === "My Places" && user && (
-          <div className="flex gap-1 p-1 mt-4 rounded-[14px] bg-transparent border border-[rgba(148,163,184,0.4)]" role="tablist">
+          <div className="flex gap-1 p-1 mt-4 rounded-[14px] bg-transparent border border-border-medium" role="tablist">
             {YOUR_PLACES_SUBTABS.map((tab) => (
               <button
                 key={tab}
@@ -527,11 +549,11 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
                 className={cn(
                   "flex-1 py-2 text-[13px] font-medium font-display rounded-[12px] transition-colors touch-manipulation",
                   yourPlacesSubTab === tab
-                    ? "bg-slate-900 text-[#E5E7EB] border border-[rgba(148,163,184,0.4)]"
-                    : "bg-transparent text-slate-400 border border-transparent hover:text-slate-300"
+                    ? "bg-tab-selected text-tab-selected-fg border border-border-medium"
+                    : "bg-transparent text-muted-foreground border border-transparent hover:text-foreground"
                 )}
               >
-                {tab}
+                {tNav(tab.toLowerCase())}
               </button>
             ))}
           </div>
@@ -549,21 +571,21 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
                     setSearchQuery("");
                     setHighlightsFilterState({ time: null, area: null, price: null, vibe: null });
                   }}
-                  className="shrink-0 p-2.5 -ml-1 rounded-[14px] bg-surface border border-[rgba(148,163,184,0.35)] shadow-[0_2px_8px_rgba(0,0,0,0.25)] text-muted-foreground hover:text-foreground hover:bg-surface-alt hover:border-[rgba(148,163,184,0.5)] transition-colors touch-manipulation"
-                  aria-label="Back to categories"
+                  className="shrink-0 p-2.5 -ml-1 rounded-[14px] bg-surface border border-border-medium shadow-[0_2px_8px_rgba(0,0,0,0.25)] text-muted-foreground hover:text-foreground hover:bg-surface-alt hover:border-border-strong transition-colors touch-manipulation"
+                  aria-label={tCommon("backToCategories")}
                 >
                   <ChevronLeft className="w-5 h-5" strokeWidth={2} />
                 </button>
               )}
-              <div className="flex-1 min-w-0 flex items-center gap-2 rounded-[14px] bg-surface border border-[rgba(148,163,184,0.35)] pl-3 pr-3 py-2.5 focus-within:border-tab-indicator focus-within:ring-1 focus-within:ring-tab-indicator/30">
+              <div className="flex-1 min-w-0 flex items-center gap-2 rounded-[14px] bg-surface border border-border-medium pl-3 pr-3 py-2.5 focus-within:border-tab-indicator focus-within:ring-1 focus-within:ring-tab-indicator/30">
                 <Search className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden />
                 <input
                   type="search"
-                  placeholder="e.g. palermo cocktail bars"
+                  placeholder={tCommon("searchPlaceholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="flex-1 min-w-0 bg-transparent text-sm font-body text-foreground placeholder:text-muted-foreground placeholder:font-body focus:outline-none"
-                  aria-label="Search places"
+                  aria-label={tCommon("searchPlaces")}
                 />
               </div>
               <FilterPill onClick={() => setFilterSheetOpen(true)} appliedCount={appliedFilterCount} />
@@ -579,17 +601,17 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
             {/* My Places: filter chips when filters applied */}
             {activeTab === "My Places" && appliedFilterCount > 0 && (
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <span className="inline-block text-[12px] px-2.5 py-1 rounded-[10px] text-[#E5E7EB] bg-chip">
+                <span className="inline-block text-[12px] px-2.5 py-1 rounded-[10px] text-chip-foreground bg-chip">
                   {[
                     parsedSearch.text && `"${parsedSearch.text.slice(0, 12)}${parsedSearch.text.length > 12 ? "…" : ""}"`,
-                    effectiveCategory !== "all" && formatFilterLabel(effectiveCategory),
+                    effectiveCategory !== "all" && (tPlaceTypes.has(effectiveCategory) ? tPlaceTypes(effectiveCategory as any) : tFilters.has(`typeGroups.${effectiveCategory}`) ? (tFilters as any)(`typeGroups.${effectiveCategory}`) : formatFilterLabel(effectiveCategory)),
                     effectiveNeighborhoods.length > 0 &&
                       effectiveNeighborhoods
-                        .map((n) => (n === NEAR_ME ? "Near me" : n === FAVORITE_NEIGHBORHOODS ? "Favorite neighborhoods" : toTitleCase(n)))
+                        .map((n) => (n === NEAR_ME ? tCommon("nearMe") : n === FAVORITE_NEIGHBORHOODS ? tFilters("favoriteNeighborhoods") : toTitleCase(n)))
                         .join(", "),
-                    filters.vibe !== "all" && formatFilterLabel(filters.vibe),
-                    (filters.tags?.length ?? 0) > 0 && `Tags: ${filters.tags!.join(", ")}`,
-                    filters.ratingMin != null && `Rating ${filters.ratingMin}+`,
+                    filters.vibe !== "all" && (tFilterChips.has(filters.vibe) ? tFilterChips(filters.vibe as any) : formatFilterLabel(filters.vibe)),
+                    (filters.tags?.length ?? 0) > 0 && `${tExplore("tagsLabel")}: ${filters.tags!.join(", ")}`,
+                    filters.ratingMin != null && tExplore("ratingLabel", { min: filters.ratingMin }),
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -602,7 +624,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                 >
-                  Clear all
+                  {tCommon("clearAll")}
                 </button>
               </div>
             )}
@@ -610,9 +632,12 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
         )}
         {activeTab === "Concierge" && user && (
           <div className="flex items-center justify-between gap-2 mt-4">
-            <p className="text-[12px] font-display text-[#94A3B8]">
-              Handpicked for {conciergeData?.time_filter === "tonight" ? "tonight" : conciergeData?.time_filter === "this_weekend" ? "the weekend" : conciergeData?.time_filter === "this_week" ? "this week" : conciergeData?.time_context === "sunday" ? "Sunday" : conciergeData?.time_context === "weekend" ? "the weekend" : "today"} in {preferences.home_city ?? "Buenos Aires"}.
-              <a href="/settings" className="text-accent-cyan font-medium hover:underline ml-1">Adjust</a>
+            <p className="text-[12px] font-display text-muted-foreground">
+              {tConcierge("handpickedFor", {
+                time: tConcierge(handpickedTimeKey),
+                city: preferences.home_city ?? "Buenos Aires",
+              })}
+              <a href="/settings" className="text-accent-cyan font-medium hover:underline ml-1">{tConcierge("adjust")}</a>
             </p>
             <FilterPill onClick={() => setConciergeFilterOpen(true)} appliedCount={conciergeFilterCount} />
           </div>
@@ -621,37 +646,37 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
       {activeTab === "Concierge" && !user && (
         <p className="text-center text-muted-foreground py-8">
           <a href="/auth/login?next=/" className="text-primary hover:underline">
-            Sign in
+            {tCommon("signIn")}
           </a>{" "}
-          to get personalized recommendations.
+          {tConcierge("signInPrompt")}
         </p>
       )}
       {activeTab === "My Places" && !user && (
         <p className="text-center text-muted-foreground py-8">
           <a href="/auth/login?next=/" className="text-primary hover:underline">
-            Sign in
+            {tCommon("signIn")}
           </a>{" "}
-          to see your saved places.
+          {tMyPlaces("signInPrompt")}
         </p>
       )}
       {activeTab === "My Places" && user && yourPlacesMerged.length === 0 && (
         <p className="text-center text-muted-foreground py-8">
-          {yourPlacesSubTab === "Saved" && "No saved places yet. Tap the heart on any place to save it."}
-          {yourPlacesSubTab === "Visited" && "No visited places yet. Tap the checkmark on any place to mark it visited."}
-          {yourPlacesSubTab === "Favorites" && "No favorites yet. Mark places as visited and rate them 4+ stars."}
+          {yourPlacesSubTab === "Saved" && tMyPlaces("noSaved")}
+          {yourPlacesSubTab === "Visited" && tMyPlaces("noVisited")}
+          {yourPlacesSubTab === "Favorites" && tMyPlaces("noFavorites")}
         </p>
       )}
       {activeTab === "My Places" && user && yourPlacesMerged.length > 0 && yourPlacesFiltered.length === 0 && (
-        <p className="text-center text-muted-foreground py-8">No places match your filters. Try changing filters.</p>
+        <p className="text-center text-muted-foreground py-8">{tMyPlaces("noMatches")}</p>
       )}
       {activeTab === "Concierge" && user && (
         <>
           {conciergeLoading && (
-            <p className="text-center text-muted-foreground py-8">Loading your picks…</p>
+            <p className="text-center text-muted-foreground py-8">{tConcierge("loadingPicks")}</p>
           )}
           {!conciergeLoading && conciergeData?.sections?.length === 0 && (
             <p className="text-center text-muted-foreground py-8">
-              No places match right now. Try changing filters or check Explore.
+              {tConcierge("noConciergeResults")}
             </p>
           )}
           {!conciergeLoading && conciergeData?.sections && conciergeData.sections.length > 0 && (
@@ -666,7 +691,9 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
                 const userState = getUserStateForVenue(primary.id, highlightIds);
                 return (
                   <div key={section.id}>
-                    <h3 className="text-sm font-display font-medium text-muted-foreground mb-2">{section.title}</h3>
+                    <h3 className="text-sm font-display font-medium text-muted-foreground mb-2">
+                      {tConcierge(`sections.${section.id}` as any) || section.title}
+                    </h3>
                     <div className="space-y-2">
                       <HighlightCard
                         highlight={primary}
@@ -700,7 +727,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
                           onClick={() => advanceConciergeSlot(section.id)}
                           className="w-full py-2 text-sm text-muted-foreground hover:text-foreground border border-dashed rounded-lg transition-colors"
                         >
-                          Not this one
+                          {tConcierge("notThisOne")}
                         </button>
                       )}
                     </div>
@@ -714,7 +741,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
       {showExploreCategoryCards && (
         <div className="space-y-4">
           <h2 className="text-lg font-display font-semibold text-foreground">
-            What are you in the mood for?
+            {tExplore("whatMood")}
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {EXPLORE_CATEGORIES.map((cat) => {
@@ -734,8 +761,8 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
                   }}
                   className={cn(
                     "group flex flex-col p-4 sm:p-5 rounded-2xl text-left",
-                    "bg-surface border border-[rgba(148,163,184,0.25)]",
-                    "hover:bg-surface-alt hover:border-[rgba(148,163,184,0.4)]",
+                    "bg-surface border border-border-app",
+                    "hover:bg-surface-alt hover:border-border-medium",
                     "active:scale-[0.98] transition-all duration-150 touch-manipulation"
                   )}
                 >
@@ -743,10 +770,10 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
                     <Icon className="w-5 h-5 text-accent-cyan" strokeWidth={1.5} />
                   </div>
                   <span className="text-[15px] font-display font-semibold text-foreground">
-                    {cat.title}
+                    {tExplore(`categories.${cat.id}`)}
                   </span>
                   <span className="text-[13px] text-muted-foreground mt-0.5">
-                    {cat.subtitle}
+                    {tExplore(`${cat.id}Blurb`)}
                   </span>
                 </button>
               );
@@ -762,16 +789,16 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
             }}
             className={cn(
               "w-full flex flex-col p-4 sm:p-5 rounded-2xl text-left",
-              "bg-surface border border-[rgba(148,163,184,0.25)]",
-              "hover:bg-surface-alt hover:border-[rgba(148,163,184,0.4)]",
+              "bg-surface border border-border-app",
+              "hover:bg-surface-alt hover:border-border-medium",
               "active:scale-[0.98] transition-all duration-150 touch-manipulation"
             )}
           >
             <span className="text-[15px] font-display font-semibold text-foreground">
-              See all places
+              {tExplore("seeAllPlaces")}
             </span>
             <span className="text-[13px] text-muted-foreground mt-0.5">
-              Browse the full collection
+              {tExplore("browseAll")}
             </span>
           </button>
         </div>
@@ -898,7 +925,7 @@ export function HighlightsFeed({ highlights, initialUserStateByPlaceId, initialT
         isAuthenticated={!!user}
       />
       {activeTab === "Explore" && !showExploreCategoryCards && filtered.length === 0 && (
-        <p className="text-center text-muted-foreground py-4 text-sm">No places match the selected filters.</p>
+        <p className="text-center text-muted-foreground py-4 text-sm">{tExplore("noPlacesMatch")}</p>
       )}
     </div>
   );

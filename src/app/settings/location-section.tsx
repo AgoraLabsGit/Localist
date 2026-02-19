@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { SUPPORTED_CITIES } from "@/lib/cities";
 import { useCities, getClosestCity } from "@/hooks/use-cities";
 import { useNeighborhoods } from "@/hooks/use-neighborhoods";
 import { cn } from "@/lib/utils";
 
 const CHIP_SELECTED = "bg-accent-cyan/25 text-foreground border-accent-cyan";
-const CHIP_UNSELECTED = "bg-transparent text-slate-400 border-[rgba(148,163,184,0.4)] hover:text-slate-300 hover:bg-slate-900/50";
+const CHIP_UNSELECTED = "bg-transparent text-muted-foreground border-border-medium hover:text-foreground hover:bg-surface-alt";
 
 interface LocationPrefs {
   home_city: string;
@@ -55,25 +56,28 @@ export function LocationSection() {
     setShowHomeNeighborhoodEdit(false);
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground font-body">Loading…</p>;
+  const t = useTranslations("common");
+  const tSettings = useTranslations("settings");
+
+  if (loading) return <p className="text-sm text-muted-foreground font-body">{t("loading")}</p>;
 
   return (
     <div className="space-y-4 font-body">
-      <h2 className="font-semibold text-foreground">Location</h2>
+      <h2 className="font-semibold text-foreground">{tSettings("location")}</h2>
       <p className="text-sm text-muted-foreground">
-        Used to scope your feed and personalize recommendations.
+        {tSettings("locationScope")}
       </p>
 
       {/* City */}
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
-          <p className="text-sm font-medium text-foreground">City</p>
+          <p className="text-sm font-medium text-foreground">{t("city")}</p>
           <button
             type="button"
             onClick={() => setShowCityPicker(!showCityPicker)}
             className="text-accent-cyan hover:underline text-sm font-medium shrink-0"
           >
-            {showCityPicker ? "Done" : "Edit"}
+            {showCityPicker ? t("done") : t("edit")}
           </button>
         </div>
         {showCityPicker ? (
@@ -94,13 +98,13 @@ export function LocationSection() {
       {/* Home Neighborhood */}
       <div>
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium text-foreground">Home Neighborhood</p>
+          <p className="text-sm font-medium text-foreground">{t("homeNeighborhood")}</p>
           <button
             type="button"
             onClick={() => setShowHomeNeighborhoodEdit(!showHomeNeighborhoodEdit)}
             className="text-accent-cyan hover:underline text-sm font-medium shrink-0"
           >
-            {showHomeNeighborhoodEdit ? "Done" : "Edit"}
+            {showHomeNeighborhoodEdit ? t("done") : t("edit")}
           </button>
         </div>
         {showHomeNeighborhoodEdit ? (
@@ -121,7 +125,7 @@ export function LocationSection() {
             ))}
           </div>
         ) : (
-          <p className="text-foreground">{prefs.home_neighborhood ?? "Not set"}</p>
+          <p className="text-foreground">{prefs.home_neighborhood ?? t("notSet")}</p>
         )}
       </div>
     </div>
@@ -145,6 +149,8 @@ function CityPicker({
   chipSelected: string;
   chipUnselected: string;
 }) {
+  const tOnb = useTranslations("onboarding");
+  const tCommon = useTranslations("common");
   const [query, setQuery] = useState("");
   const [geoLoading, setGeoLoading] = useState(false);
   const citiesList = cities.length > 0 ? cities : SUPPORTED_CITIES;
@@ -177,10 +183,10 @@ function CityPicker({
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search cities…"
-        className="w-full rounded-[14px] border border-[rgba(148,163,184,0.4)] bg-slate-900 px-4 py-3 text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent-cyan/30"
+        placeholder={tOnb("cityPlaceholder")}
+        className="w-full rounded-[14px] border border-border-medium bg-surface px-4 py-3 text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent-cyan/30"
       />
-      {geoLoading && <p className="text-xs text-muted-foreground">Detecting location…</p>}
+      {geoLoading && <p className="text-xs text-muted-foreground">{tCommon("detecting")}</p>}
       <div className="flex flex-wrap gap-1.5">
         {filtered.map((c) => (
           <button

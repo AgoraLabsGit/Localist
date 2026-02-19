@@ -1,14 +1,11 @@
 "use client";
 
 import { Heart, Star, MapPin, UtensilsCrossed, Check, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { Highlight, Venue } from "@/types/database";
 import { toTitleCase } from "@/lib/neighborhoods";
 import { getPrimaryPhotoUrl } from "@/lib/venue-photo";
-
-function formatCategory(cat: string) {
-  return cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function priceLevel(price: number | null): string {
   if (price === null || price === undefined || price === 0) return "";
@@ -17,11 +14,15 @@ function priceLevel(price: number | null): string {
   return "$$$";
 }
 
-function ratingLabel(rating: number): string {
-  if (rating >= 4.5) return "Top pick";
-  if (rating >= 4) return "Strong choice";
-  if (rating >= 3) return "Mixed";
-  return "";
+function formatCategoryLabel(cat: string, tTypes: (key: string) => string): string {
+  if (!cat || typeof cat !== "string") return "";
+  try {
+    const translated = tTypes(cat);
+    if (translated && translated !== cat) return translated;
+  } catch {
+    // fall through to fallback
+  }
+  return cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 interface HighlightCardProps {
@@ -58,20 +59,29 @@ export function HighlightCard({
   onHide,
   isAuthenticated,
 }: HighlightCardProps) {
+  const tTypes = useTranslations("placeTypes");
+  const tPlace = useTranslations("placeDetail");
   const venue = getVenue(highlight.venue);
   const photoUrl = getPrimaryPhotoUrl(venue);
   const rating = venue?.rating ?? null;
   const ratingCount = venue?.rating_count ?? null;
   const vibeTags = Array.isArray(highlight.vibe_tags) ? highlight.vibe_tags : [];
   const price = priceLevel(highlight.avg_expected_price);
-  const cats = categories ?? [highlight.category];
+  const cats = (categories ?? [highlight.category]).filter((c): c is string => Boolean(c));
+
+  const ratingLabel = (r: number) => {
+    if (r >= 4.5) return tPlace("topPick");
+    if (r >= 4) return tPlace("strongChoice");
+    if (r >= 3) return tPlace("mixed");
+    return "";
+  };
   return (
     <div
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
-      className="rounded-[20px] bg-surface overflow-hidden border border-[rgba(148,163,184,0.25)] shadow-card-soft hover:shadow-card-soft hover:-translate-y-0.5 hover:scale-[1.01] transition-all duration-200 cursor-pointer text-left active:scale-[0.99]"
+      className="rounded-[20px] bg-surface overflow-hidden border border-border-app shadow-card-soft hover:shadow-card-soft hover:-translate-y-0.5 hover:scale-[1.01] transition-all duration-200 cursor-pointer text-left active:scale-[0.99]"
     >
       {photoUrl ? (
         <div className="relative aspect-[3/2] w-full overflow-hidden rounded-t-[20px]">
@@ -124,9 +134,9 @@ export function HighlightCard({
               {cats.map((cat) => (
                 <span
                   key={cat}
-                  className="text-xs font-medium text-[#E5E7EB] px-2 py-1 rounded-[10px] bg-chip"
+                  className="text-xs font-medium text-chip-foreground px-2 py-1 rounded-[10px] bg-chip"
                 >
-                  {formatCategory(cat)}
+                  {formatCategoryLabel(cat, (k) => tTypes(k as any))}
                 </span>
               ))}
             </div>
@@ -164,9 +174,9 @@ export function HighlightCard({
                   ACTION_BTN,
                   saved
                     ? "border-red-500/40 bg-red-500/10 text-red-500"
-                    : "border-[rgba(148,163,184,0.4)] text-muted-foreground hover:text-red-500 hover:border-red-500/30 active:bg-surface-alt/50"
+                    : "border-border-medium text-muted-foreground hover:text-red-500 hover:border-red-500/30 active:bg-surface-alt/50"
                 )}
-                aria-label={saved ? "Unsave" : "Save"}
+                aria-label={saved ? tPlace("unsave") : tPlace("save")}
               >
                 <Heart className={cn("w-4 h-4", saved && "fill-red-500")} />
               </button>
@@ -182,9 +192,9 @@ export function HighlightCard({
                   ACTION_BTN,
                   isVisited
                     ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
-                    : "border-[rgba(148,163,184,0.4)] text-muted-foreground hover:text-emerald-500 hover:border-emerald-500/30 active:bg-surface-alt/50"
+                    : "border-border-medium text-muted-foreground hover:text-emerald-500 hover:border-emerald-500/30 active:bg-surface-alt/50"
                 )}
-                aria-label={isVisited ? "Unmark visited" : "Mark visited"}
+                aria-label={isVisited ? tPlace("unmarkVisited") : tPlace("markVisited")}
               >
                 <Check className={cn("w-4 h-4", isVisited && "stroke-[2.5]")} />
               </button>
@@ -198,9 +208,9 @@ export function HighlightCard({
                 }}
                 className={cn(
                   ACTION_BTN,
-                  "border-[rgba(148,163,184,0.4)] text-muted-foreground hover:text-foreground hover:bg-surface-alt/50"
+                  "border-border-medium text-muted-foreground hover:text-foreground hover:bg-surface-alt/50"
                 )}
-                aria-label="Hide"
+                aria-label={tPlace("hide")}
               >
                 <X className="w-4 h-4" />
               </button>

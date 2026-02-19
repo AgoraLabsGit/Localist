@@ -12,7 +12,7 @@ export default async function AccountPage() {
 
   return (
     <div className="min-h-screen bg-app font-body">
-      <header className="sticky top-0 z-50 bg-app border-b border-[rgba(148,163,184,0.25)]">
+      <header className="sticky top-0 z-50 bg-app border-b border-border-app">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <Link href="/settings" className="text-muted-foreground hover:text-foreground transition-colors text-sm">
             ← Back
